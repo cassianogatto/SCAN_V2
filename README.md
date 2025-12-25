@@ -3,7 +3,7 @@
    </div>
 
 ```r 
-SCAN -> Mapping Biogeographical Units (Chorotypes) based on a Network Analysis of Spatial Congruences 
+SCAN -> Biogeographical Units (Chorotypes) based on a Network Analysis of Spatial Congruences 
 ```
 ### What is SCAN about?
 In **Biogeography**, the field of biology that studies the spatial distribution of species and the evolution of their environments, a pervasive question remains: why do unrelated species often exhibit similar geographic distributions? The phenomenon of distributional congruence inspired Wallace — the father of Biogeography and co-founder of the Theory of Evolution by Natural Selection — as well as many subsequent researchers, to develop insights about the evolution and ecology of species and environments. Ideally, congruence should be among the primary criteria for any biogeographic analysis based on species distributions. Unfortunately, until now, most methods have not employed spatial congruence between distributions as an explicit and controllable parameter.
