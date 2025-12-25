@@ -6,6 +6,18 @@
 SCAN -> Biogeographical Units (Chorotypes) based on a Network Analysis of Spatial Congruences 
 ```
 # This is SCAN V 2 # 
+
+<table>
+  <tr>
+    <td>
+      ## WARNING!!! ##
+SCAN V2 is not ready yet... I am migrating old tools and incoroporating new ones, such as an improved Cs calcultion using parallel multi core calculation...
+
+    </td>
+  </tr>
+</table>
+
+
 Spatial analysis to its essence in an extremely simple theoretical and conceptual background. No fancy models, statistics, or simulations, at least by now. Just a fine adjustment of direct and indirect Spatial Congruences (Cs) between species to find Chorotypes, or communities in Graph terminology. Yes, spatial patterns can be seem as direct network relationships.
 
 ### What is SCAN about?
