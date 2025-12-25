@@ -1,5 +1,5 @@
 <div>
-  <img src="https://github.com/cassianogatto/SCAN_R_4.5.2/www/SCAN_logo1.png" width="300" alt="SCAN Logo">
+  <img src="www/SCAN_logo1.png" width="300" alt="SCAN Logo">
    </div>
 
 ```r 
@@ -11,7 +11,7 @@ In **Biogeography**, the field of biology that studies the spatial distribution 
  <table>
   <tr>
   <td>
-    <img height = "200" src="https://github.com/cassianogatto/SCAN_R_4.5.2/www/Psophia.jpg">
+    <img height = "200" src="www/Psophia.jpg">
   </td>
   <td>
     Psophia leucoptera <i>shares its distribution with other birds at the Inambari Endemic Area, SW Amazonia</i>
@@ -27,7 +27,7 @@ What about analyse spatial congruence between species, the primary informative c
 <table>
   <tr>
   <td>
-    <img height=80% src="https://github.com/cassianogatto/SCAN_R_4.5.2/www/Primate_chorotypes_graph.png">
+    <img height=80% src="www/Primate_chorotypes_graph.png">
   </td>
   <td>
     <i>Examples of Primate Chorotypes across South and Central Americas at a Spatial Congruence Cs = 0.6 - their network structures are show in the right panel</i>
@@ -35,7 +35,7 @@ What about analyse spatial congruence between species, the primary informative c
   </tr>
   <tr>
     <td>
-      <img height=80% src="https://github.com/cassianogatto/SCAN_R_4.5.2/www/Primate_chorotypes_whole_network.png">
+      <img height=80% src="www/Primate_chorotypes_whole_network.png">
     </td>
   </tr>
   <td>
