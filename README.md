@@ -8,12 +8,15 @@ SCAN -> Biogeographical Units (Chorotypes) based on a Network Analysis of Spatia
 # This is SCAN V 2 # 
 
 <table>
-  <tr>
+  <td>
+   <tr>
     ## WARNING!!! ##
   </tr>
   <tr>
     SCAN V2 is not ready yet... I am migrating old tools and incoroporating new ones, such as an improved Cs calcultion using parallel multi core calculation...
-  </tr>
+  </tr> 
+  </td>
+  
 </table>
 
 
