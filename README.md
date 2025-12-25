@@ -7,6 +7,8 @@ SCAN -> Biogeographical Units (Chorotypes) based on a Network Analysis of Spatia
 ```
 # This is SCAN V 2 # 
 
+Spatial analysis to its essence in an extremely simple theoretical and conceptual background. No fancy models, statistics, or simulations, at least by now. Just a fine adjustment of direct and indirect Spatial Congruences (Cs) between species to find Chorotypes, or communities in Graph terminology. Yes, spatial patterns can be seem as direct network relationships.
+
 <table>
   <td>
    <tr>
@@ -15,12 +17,9 @@ SCAN -> Biogeographical Units (Chorotypes) based on a Network Analysis of Spatia
   <tr>
     SCAN V2 is not ready yet... I am migrating old tools and incoroporating new ones, such as an improved Cs calcultion using parallel multi core calculation...
   </tr> 
-  </td>
-  
+  </td>  
 </table>
 
-
-Spatial analysis to its essence in an extremely simple theoretical and conceptual background. No fancy models, statistics, or simulations, at least by now. Just a fine adjustment of direct and indirect Spatial Congruences (Cs) between species to find Chorotypes, or communities in Graph terminology. Yes, spatial patterns can be seem as direct network relationships.
 
 ### What is SCAN about?
 In **Biogeography**, the field of biology that studies the spatial distribution of species and the evolution of their environments, a pervasive question remains: why do unrelated species often exhibit similar geographic distributions? The phenomenon of distributional congruence inspired Wallace — the father of Biogeography and co-founder of the Theory of Evolution by Natural Selection — as well as many subsequent researchers, to develop insights about the evolution and ecology of species and environments. Ideally, congruence should be among the primary criteria for any biogeographic analysis based on species distributions. Unfortunately, until now, most methods have not employed spatial congruence between distributions as an explicit and controllable parameter.
