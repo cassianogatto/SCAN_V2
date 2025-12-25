@@ -22,8 +22,7 @@ In **Biogeography**, the field of biology that studies the spatial distribution 
   </tr>
 </table>
 
-What about analyse spatial congruence between species, the primary informative criterion, using pairwise Network Relationships to detect (1) independent and also potentially (2) overlapping spatial patterns, while yet simultaneously describing (3) gradients fo species distributions? Such a framework would address three analytical requirements not previously combined in any method, representing a significant advance in the biogeographical analysis of species distributions.
-
+What about using congruence between species as the primary informative criterion? Such pairwise Network Relationships could allow the detection of: 1) groups of species sharing distributions, but also potentially (2) overlapping but independent spatial patterns, while yet simultaneously describing (3) gradients fo species distributions. SCAN does that! It addresses three analytical requirements not previously combined in any method, representing a significant advance in the biogeographical analysis of species distributions.
 
 <table>
   <tr>
