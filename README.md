@@ -12,7 +12,7 @@ Spatial analysis to its essence in an extremely simple theoretical and conceptua
 <table>
   <tr>
    <td>
-    ## WARNING!!! ##
+    <h2> WARNING!!! </h2>
   </td>
   <td>
     SCAN V2 is not ready yet... I am migrating old tools and incoroporating new ones, such as an improved Cs calcultion using parallel multi core calculation...
