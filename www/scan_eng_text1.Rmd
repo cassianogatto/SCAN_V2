@@ -1,0 +1,9 @@
+---
+output: html_document
+---
+
+#### Upload the shapefile map containing **all species' distributions as unique layers with unique IDs and geometries**. All SCAN steps are derived from these maps: Spatial similarities (Cs), Scanning algorithm, and Plotting results.
+
+#### Maps must have, at least, __one ID column named 'sp', and a 'geometry' column__ (these exact names). If not, chose among the current names (listed after loading the shape for the first time) and __write the name of the ID column__ in the box before loading the the map again. Information about species and geographical projections are also displayed. Check all important details before taking the next steps.
+
+##### Note: Individual species' layers may be corrupted for many reasons (invalid species are displayed below the _no invalid species_ is the expected info). Sometimes a projection transformation (CRS) of the whole shapefile may fix it; to do so, mark the checkbox (below) and choose another EPSG number (see https://epsg.io)[see https://epsg.io]. SCAN_eng can also apply sf::st_make_valid to try to fix individual species layers (check box). If these procedures are not enough to fix all species you may try to filter out these before loading the map. Be aware that, for large datasets, **Shiny may take a long time** to run accros each and the whole process as well.
