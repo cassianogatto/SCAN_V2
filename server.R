@@ -1,3 +1,6 @@
+
+######### SCAN V2 #########
+
 library(shiny)
 library(shinydashboard)
 library(dplyr)
@@ -60,10 +63,6 @@ calculate_chunk_cs_engine <- function(species_chunk, all_shapes, areas_df) {
 
 
 server <- function(input, output, session) {
-    
-    # =========================================================================
-    # --- A. MASTER DATA MANAGEMENT (The "Dual-Identity" Core) ---
-    # =========================================================================
     
     # 1. Initialize the Master Reactive Value
     # =========================================================================
@@ -198,8 +197,7 @@ server <- function(input, output, session) {
             flyToBounds(lng1 = bb[1], lat1 = bb[2], lng2 = bb[3], lat2 = bb[4])
     })
     
-    # --- C. Live Map Update (The "Magic") ----
-    # Whenever map_raw changes, it updates the background map
+    # --- C. Whenever map_raw changes, it updates the background map
     observe({
         req(map_data())
         
@@ -217,7 +215,7 @@ server <- function(input, output, session) {
             )
     })
     
-    # --- D. Workshop Outputs (Skeletons) ---
+    # --- D. Workshop Outputs (Skeletons) ----
     output$map_shp_names <- renderText({
         if(is.null(input$filemap)) return("Waiting for map upload...")
         paste("Columns:", paste(names(map_data()), collapse = ", "))
