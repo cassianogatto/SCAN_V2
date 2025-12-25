@@ -5,6 +5,9 @@
 ```r 
 SCAN -> Biogeographical Units (Chorotypes) based on a Network Analysis of Spatial Congruences 
 ```
+# This is SCAN V 2 # 
+Spatial analysis to its essence in an extremely simple theoretical and conceptual background. No fancy models, statistics, or simulations, at least by now. Just a fine adjustment of direct and indirect Spatial Congruences (Cs) between species to find Chorotypes, or communities in Graph terminology. Yes, spatial patterns can be seem as direct network relationships.
+
 ### What is SCAN about?
 In **Biogeography**, the field of biology that studies the spatial distribution of species and the evolution of their environments, a pervasive question remains: why do unrelated species often exhibit similar geographic distributions? The phenomenon of distributional congruence inspired Wallace — the father of Biogeography and co-founder of the Theory of Evolution by Natural Selection — as well as many subsequent researchers, to develop insights about the evolution and ecology of species and environments. Ideally, congruence should be among the primary criteria for any biogeographic analysis based on species distributions. Unfortunately, until now, most methods have not employed spatial congruence between distributions as an explicit and controllable parameter.
  
@@ -21,8 +24,6 @@ In **Biogeography**, the field of biology that studies the spatial distribution 
 
 What about analyse spatial congruence between species, the primary informative criterion, using pairwise Network Relationships to detect (1) independent and also potentially (2) overlapping spatial patterns, while yet simultaneously describing (3) gradients fo species distributions? Such a framework would address three analytical requirements not previously combined in any method, representing a significant advance in the biogeographical analysis of species distributions.
 
- # This is SCAN V 1.01 # 
- As a bonus, it brings spatial analysis to its essence in an extremely simple theoretical and conceptual background. No fancy models, statistics, or simulations. Just a fine adjustment of the Spatial Congruence (Cs), a measurement of proportional overlapping between species, to find Chorotypes, or communities in Graph terminology. Yes, spatial patterns can be seem as direct network relationships.
 
 <table>
   <tr>
