@@ -235,7 +235,7 @@ server <- function(input, output, session) {
     # =========================================================================
     
     observeEvent(input$calculate_Cs, {
-        req(map_data()) # CHANGED from map_data(() to map_data()
+        req(map_data()) 
         
         # 1. PRE-PROCESSING
         showNotification("Preparing Data...", type = "message")
