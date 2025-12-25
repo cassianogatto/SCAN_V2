@@ -9,11 +9,10 @@ SCAN -> Biogeographical Units (Chorotypes) based on a Network Analysis of Spatia
 
 <table>
   <tr>
-    <td>
-      ## WARNING!!! ##
-SCAN V2 is not ready yet... I am migrating old tools and incoroporating new ones, such as an improved Cs calcultion using parallel multi core calculation...
-
-    </td>
+    ## WARNING!!! ##
+  </tr>
+  <tr>
+    SCAN V2 is not ready yet... I am migrating old tools and incoroporating new ones, such as an improved Cs calcultion using parallel multi core calculation...
   </tr>
 </table>
 
