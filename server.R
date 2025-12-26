@@ -1,5 +1,7 @@
 
-######### SCAN V2 #########
+######################################################
+#           THIS IS SCAN V2                          #
+######################################################
 
 library(shiny)
 library(shinydashboard)
@@ -58,20 +60,20 @@ calculate_chunk_cs_engine <- function(species_chunk, all_shapes, areas_df) {
 
 
 
-
-
-
-
 server <- function(input, output, session) {
     
-    # 1. Initialize the Master Reactive Value
     # =========================================================================
-    # --- A. MASTER DATA MANAGEMENT ---
+    #  MASTER DATA MANAGEMENT ---
     # =========================================================================
     
     map_data <- reactiveVal(NULL)
     
-    # 1. Initial Load (Default WGS84)
+    cs_matrix_data <- reactiveVal(NULL)
+    
+    # 🧠 THE MEMORY BANK
+    spp_choices <- reactiveVal(NULL)
+    
+    # Initial Load (Default WGS84)
     observeEvent(input$filemap, {
         req(input$filemap)
         shpdf <- input$filemap
@@ -90,10 +92,47 @@ server <- function(input, output, session) {
             st_make_valid()
         
         map_data(raw_shp)
-        showNotification("Map Uploaded (WGS84)", type = "message")
+        
+        # --- POPULATE THE MEMORY ---
+        # 1. Try to find 'sp', otherwise grab the first column
+        target_col <- if("sp" %in% names(raw_shp)) "sp" else names(raw_shp)[1]
+        
+        # 2. Extract and Sort
+        new_list <- sort(unique(raw_shp[[target_col]]))
+        
+        # 3. Save to Memory (Reactive Value)
+        spp_choices(new_list)
+        
+        showNotification(paste("Map Uploaded. Found", length(new_list), "species."), type = "message")
+        
+        # --- POPULATE THE RIGHT PANEL DROPDOWN ---
+        spp_list <- unique(raw_shp$sp) %>% sort()
+        updateSelectizeInput(session, "map_spp_select", 
+                             choices = spp_list, 
+                             server = TRUE)
+        
+        showNotification("Map Uploaded and Species List Ready", type = "message")
+        
     })
     
-    # 2. THE MASTER MODIFIER (Project + Buffer)
+    # --- 🚀 THE MISSING REACTIVE: filtered_data ---
+    # This takes the master pool and filters it based on the right panel selection
+    filtered_data <- reactive({
+        req(map_data())
+        
+        # Determine which column to use (sp or custom)
+        col_name <- if(isTRUE(input$ID_column)) input$colum_sp_map else "sp"
+        
+        # If the user hasn't selected any species, show the whole community
+        if (is.null(input$map_spp_select) || length(input$map_spp_select) == 0) {
+            return(map_data())
+        } else {
+            # Filter the master data
+            return(map_data() %>% filter(.data[[col_name]] %in% input$map_spp_select))
+        }
+    })
+    
+    # THE MASTER MODIFIER (Project + Buffer)
     observeEvent(input$apply_mods, {
         req(map_data())
         
@@ -159,26 +198,90 @@ server <- function(input, output, session) {
         }
         
         # --- STEP 3: FINAL VALIDATION ---
-        # Always run this at the end to ensure Cs calculus doesn't crash
         wrk_shp <- st_make_valid(wrk_shp)
         
-        # Update Master Data
+        # 1. Update the Master Reactive (Crucial: This saves your work!)
         map_data(wrk_shp)
-        showNotification("Settings Applied Successfully!", type = "message")
+        
+        # 1. Identify the correct column name
+        col_name <- if(isTRUE(input$ID_column)) input$colum_sp_map else "sp"
+        
+        # 2. Update Memory if column exists
+        if (col_name %in% names(wrk_shp)) {
+            new_list <- sort(unique(wrk_shp[[col_name]]))
+            spp_choices(new_list) # <--- Save it!
+        }
+        
+        # 2. Identify the correct column name
+        col_name <- if(input$ID_column) input$colum_sp_map else "sp"
+        
+        # 3. Refresh the dropdown in case species names changed or polygons were merged
+        new_spp <- unique(wrk_shp[[col_name]]) %>% sort()
+        updateSelectizeInput(session, "map_spp_select", 
+                             choices = new_spp, 
+                             server = TRUE)
+        
+        showNotification("Settings Applied & Species List Updated!", type = "message")
     })
     
     # =========================================================================
-    # --- B. MAP DISPLAY (Leaflet Adapter) ----
+    #  MAP DISPLAY (Leaflet Adapter) ----
     # =========================================================================
     
-    # Initial Map Setup
+    # --- 1. INITIAL MAP SETUP (Must be active!) ---
     output$map <- renderLeaflet({
         leaflet() %>%
             addProviderTiles(providers$CartoDB.Positron) %>%
             setView(lng = -45, lat = -15, zoom = 4)
     })
     
-    # --- B. Live Map Update (Leaflet Adapter) ----
+    
+    # --- UNIFIED MAP DISPLAY ---
+    observe({
+        req(filtered_data())
+        
+        # 1. Create a display copy in WGS84
+        display_shp <- st_transform(filtered_data(), 4326)
+        
+        # 2. Get the current label column
+        col_name <- if(isTRUE(input$ID_column)) input$colum_sp_map else "sp"
+        
+        # Safety Check: Ensure the column actually exists before asking Leaflet to use it
+        if (!col_name %in% names(display_shp)) {
+            # Fallback to the first column if "sp" or custom name is missing
+            col_name <- names(display_shp)[1] 
+        }
+        
+        # 3. Calculate bounds
+        bb <- st_bbox(display_shp)
+        
+        # 4. Update the map
+        leafletProxy("map") %>%
+            clearShapes() %>%
+            addPolygons(data = display_shp, 
+                        color = "#18bc9c", 
+                        weight = 2, 
+                        fillOpacity = 0.4,
+                        # FIX IS HERE: Use standard R access [[ ]] without the tilde (~)
+                        label = as.character(display_shp[[col_name]])) %>%
+            flyToBounds(lng1 = bb[1], lat1 = bb[2], lng2 = bb[3], lat2 = bb[4])
+    })
+    
+    
+    # 5. Reset Button Logic (Inside the Right Panel)
+    observeEvent(input$btn_map_reset, {
+        updateSelectizeInput(session, "map_spp_select", selected = character(0))
+        showNotification("Map View Reset", type = "message")
+    })
+    
+    # # Initial Map Setup
+    # output$map <- renderLeaflet({
+    #     leaflet() %>%
+    #         addProviderTiles(providers$CartoDB.Positron) %>%
+    #         setView(lng = -45, lat = -15, zoom = 4)
+    # })
+    
+    # --- Live Map Update (Leaflet Adapter) ----
     observe({
         req(map_data())
         
@@ -197,7 +300,7 @@ server <- function(input, output, session) {
             flyToBounds(lng1 = bb[1], lat1 = bb[2], lng2 = bb[3], lat2 = bb[4])
     })
     
-    # --- C. Whenever map_raw changes, it updates the background map
+    # --- Whenever map_raw changes, it updates the background map
     observe({
         req(map_data())
         
@@ -215,7 +318,12 @@ server <- function(input, output, session) {
             )
     })
     
-    # --- D. Workshop Outputs (Skeletons) ----
+    # --- If species are selected the maps change 
+    
+    
+    
+    
+    # --- Workshop Outputs (Skeletons) ----
     output$map_shp_names <- renderText({
         if(is.null(input$filemap)) return("Waiting for map upload...")
         paste("Columns:", paste(names(map_data()), collapse = ", "))
@@ -226,10 +334,112 @@ server <- function(input, output, session) {
         paste("Original CRS:", st_crs(map_data())$input)
     })
     
-    # ___ Gem Cs skeleton alternative analyses terra, chunk, parallel ___ #
+    # ==============================================================================
+    #  CONTEXT-AWARE RIGHT PANEL LOGIC
+    # ==============================================================================
+    
+    output$right_panel_container <- renderUI({
+        
+        # 1. Get Navigation State (MATCH THE UI NAME!)
+        top_lvl <- input$top_nav
+        sub_lvl <- input$analysis_subtabs
+        
+        # Initialize content as NULL (hidden)
+        panel_content <- tagList(
+            p(class="text-muted", "Select species to highlight on the workshop map."),
+            
+            # 🚀 FIX: READ FROM MEMORY
+            selectizeInput("map_spp_select", NULL, 
+                           choices = spp_choices(), # <--- Directly reading the reactive value
+                           multiple = TRUE, 
+                           options = list(placeholder = "Select species...")),
+            
+            actionButton("btn_map_reset", "Reset View", icon = icon("refresh"), size = "xs")
+        )
+        panel_title <- ""
+        
+        # --- LOGIC TREE ---
+        
+        # CASE A: Top Level = "SCAN Analysis"
+        if (!is.null(top_lvl) && top_lvl == "SCAN Analysis") {
+            
+            # Check Sub-Tabs
+            if (!is.null(sub_lvl) && sub_lvl == "Map") {
+                # --- MAP TOOLS ---
+                panel_title <- "Map Filters"
+                panel_content <- tagList(
+                    p(class="text-muted", "Select species to highlight on the workshop map."),
+                    selectizeInput("map_spp_select", NULL, choices = NULL, multiple = TRUE, 
+                                   options = list(placeholder = "Select species...")),
+                    actionButton("btn_map_reset", "Reset View", icon = icon("refresh"), size = "xs")
+                )
+                
+            } else if (sub_lvl == "Cs") {
+                # --- MATRIX TOOLS ---
+                # Only show if matrix exists
+                validate(need(cs_matrix_data(), "No Matrix Calculated"))
+                
+                panel_title <- "Matrix Inspector"
+                panel_content <- tagList(
+                    p(strong("Dimensions:"), paste(nrow(cs_matrix_data()), "x", ncol(cs_matrix_data()))),
+                    hr(),
+                    p("Top Connected Nodes:"),
+                    tableOutput("mini_nodes_table") # You need to define this output below
+                )
+                
+            } else if (sub_lvl == "SCAN") {
+                # --- CHOROTYPE TOOLS ----
+                panel_title <- "Chorotype Settings"
+                panel_content <- tagList(
+                    sliderInput("scan_ct_slider", "Ct Threshold:", min=0, max=1, value=0.5),
+                    selectInput("scan_focus_group", "Highlight Group:", choices = c("All", "A", "B"))
+                )
+            }
+            
+            # CASE B: Top Level = "SCAN Viewer"
+        } else if (!is.null(top_lvl) && top_lvl == "SCAN Viewer") {
+            # --- VIEWER TOOLS ----
+            panel_title <- "Viewer Controls"
+            panel_content <- tagList(
+                h5("Visual Layers"),
+                checkboxInput("show_network", "Show Network", TRUE),
+                checkboxInput("show_map", "Show Map Overlay", TRUE),
+                hr(),
+                selectizeInput("viewer_spp_search", "Find Species:", choices = NULL)
+            )
+        }
+        
+        # --- RENDER THE BOX (If content exists) ----
+        if (!is.null(panel_content)) {
+            div(class = "box box-solid box-primary", # Uses AdminLTE styling
+                style = "background: rgba(255,255,255,0.9); box-shadow: 0 4px 8px rgba(0,0,0,0.3);",
+                
+                # Header with Collapse Button
+                div(class = "box-header with-border",
+                    h3(class = "box-title", icon("cogs"), " ", panel_title),
+                    div(class = "box-tools pull-right",
+                        tags$button(type="button", class="btn btn-box-tool", 
+                                    onclick = "$('#right_panel_body').slideToggle()",
+                                    icon("minus"))
+                    )
+                ),
+                
+                # Body
+                div(id = "right_panel_body", class = "box-body",
+                    panel_content
+                )
+            )
+        } else {
+            return(NULL) # Hide panel completely on "About" or "Settings"
+        }
+    })
+    
+    output$mini_nodes_table <- renderTable({
+        # Logic to find top connected nodes
+    })
     
     # =========================================================================
-    # --- D. THE NEW CS CALCULUS SKELETON ----
+    # --- THE NEW CS CALCULUS SKELETON ----
     # =========================================================================
     
     observeEvent(input$calculate_Cs, {
@@ -337,7 +547,7 @@ server <- function(input, output, session) {
             # Placeholder: Convert sf -> vect -> terra intersect logic
         }
         
-    }) # End ObserveEvent
+    }) # End ObserverEvent
 
     
     # =========================================================================

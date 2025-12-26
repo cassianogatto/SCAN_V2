@@ -29,21 +29,31 @@ ui <- fillPage(
     }
   "),
     
-    # JavaScript to capture Top-Bar clicks
-    tags$script("
-    $(document).on('click', '.nav-item', function() {
-      Shiny.setInputValue('selected_tab', $(this).text());
-    });
-  "),
-    
-    # --- 2. Top Navigation Bar ----
-    tags$div(class = "top-nav-bar",
-             tags$div(class = "nav-item", "About SCAN"),
-             # tags$div(class = "nav-item", "Directions"),
-             tags$div(class = "nav-item", "SCAN Analysis"),
-             tags$div(class = "nav-item", "SCAN Viewer"),
-             tags$div(class = "nav-item", "Settings&Files"),
-    ),
+
+    # --- 1. Top Navigation Bar (Updated) ---
+  # --- 2. Top Navigation Bar (Updated) ---
+  tags$div(class = "top-nav-bar",
+           
+           # ABOUT
+           tags$div(class = "nav-item", 
+                    onclick = "Shiny.setInputValue('top_nav', 'About SCAN');", 
+                    "About SCAN"),
+           
+           # ANALYSIS
+           tags$div(class = "nav-item", 
+                    onclick = "Shiny.setInputValue('top_nav', 'SCAN Analysis');", 
+                    "SCAN Analysis"),
+           
+           # VIEWER
+           tags$div(class = "nav-item", 
+                    onclick = "Shiny.setInputValue('top_nav', 'SCAN Viewer');", 
+                    "SCAN Viewer"),
+           
+           # SETTINGS
+           tags$div(class = "nav-item", 
+                    onclick = "Shiny.setInputValue('top_nav', 'Settings&Files');", 
+                    "Settings&Files")
+  ),
     
     # --- 3. The Leaflet Map Background ----
     leafletOutput("map", width = "100%", height = "100%"),
@@ -51,7 +61,7 @@ ui <- fillPage(
     
     # --- 4. Merged Content: Info & Documentation ----
     conditionalPanel(
-        condition = "input.selected_tab == 'About SCAN' || input.selected_tab == 'Directions'",
+        condition = "input.top_nav == 'About SCAN' || input.top_nav_selectio == 'Directions'",
         absolutePanel(
             top = 70, left = "15%", right = "15%",
             div(class = "scroll-panel",
@@ -89,7 +99,7 @@ ui <- fillPage(
     
     # --- 5. Sidebar: SCAN Analysis Flow ----
     conditionalPanel(
-        condition = "input.selected_tab == 'SCAN Analysis'",
+        condition = "input.top_nav == 'SCAN Analysis'",
         absolutePanel(top = 60, left = 0, width = "25%",
             div(class = "left-sidebar",
                 tabsetPanel(id = "analysis_subtabs", type = "pills",
@@ -268,7 +278,7 @@ ui <- fillPage(
                     
                     
                     # SCAN ----
-                    tabPanel("SCAN", br(),
+                    tabPanel("SCAN", 
                         
                         box(title="SCAN Engine", width=NULL, "SCAN Execution here", 
                             status = "primary",  solidHeader = T,
@@ -318,7 +328,7 @@ ui <- fillPage(
     
     # --- 6. SCAN Viewer ----
     conditionalPanel(
-        condition = "input.selected_tab == 'SCAN Viewer'",
+        condition = "input.top_nav == 'SCAN Viewer'",
         absolutePanel(top = 70, left = "15%", right = "15%",
                       div(class = "scroll-panel", h2("SCAN Viewer"),
                           
@@ -352,7 +362,7 @@ ui <- fillPage(
     
     # --- 7. Settings & Files ----
     conditionalPanel(
-        condition = "input.selected_tab == 'Settings&Files'",
+        condition = "input.top_nav == 'Settings&Files'",
         absolutePanel(
             top = 70, left = "15%", right = "15%",
             div(class = "scroll-panel",
@@ -396,7 +406,24 @@ ui <- fillPage(
         )
     ),
     
+    # --- Right Context Panel ----
+  # --- Right Context Panel ----
+  absolutePanel(
+      id = "smart_right_panel",
+      class = "panel panel-default",
+      fixed = TRUE, top = 60, right = 20, width = 350, height = "auto",
+      style = "z-index: 1050; background-color: rgba(255, 255, 255, 0.95); border-radius: 5px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);",
+      
+      div(style = "padding: 10px; background-color: #2c3e50; color: white; border-radius: 5px 5px 0 0; cursor: pointer;",
+          id = "right_panel_header",
+          onclick = "$('#right_panel_content').slideToggle();",
+          icon("cogs"), " Context Tools ", icon("caret-down", style="float:right;")
+      ),
+      
+      div(id = "right_panel_content", style = "padding: 15px; max-height: 80vh; overflow-y: auto;",
+          uiOutput("right_panel_container")
+      )
+  ),
     
     
-    
-)
+)  # Ends ui fillPage
