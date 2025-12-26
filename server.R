@@ -21,7 +21,7 @@ library(DT)          # Para as tabelas modernas
 library(stringr)
 library(shinyjs)
 
-# --- 🚀 FIX: INCREASE UPLOAD LIMIT ---
+# ---- 🚀 FIX: INCREASE UPLOAD LIMIT ---
 # Set limit to 500 MB (Default is only 5MB)
 options(shiny.maxRequestSize = 500 * 1024^2) 
 
@@ -29,7 +29,7 @@ options(shiny.maxRequestSize = 500 * 1024^2)
 sf::sf_use_s2(FALSE)
 
 
-# --- GLOBAL CALCULUS FUNCTION - CHUNKS ----
+# ---- GLOBAL CALCULUS FUNCTION - CHUNKS ----
 calculate_chunk_cs_engine <- function(species_chunk, all_shapes, areas_df) {
     
     # 1. Filtra o Chunk
@@ -63,9 +63,9 @@ calculate_chunk_cs_engine <- function(species_chunk, all_shapes, areas_df) {
 
 server <- function(input, output, session) {
     
-    # =========================================================================
+    
     #  MASTER DATA MANAGEMENT ---
-    # =========================================================================
+    
     
     map_data <- reactiveVal(NULL)
     
@@ -94,7 +94,7 @@ server <- function(input, output, session) {
         
         map_data(raw_shp)
         
-        # --- POPULATE THE MEMORY ---
+        # ---- POPULATE THE MEMORY ---
         # 1. Try to find 'sp', otherwise grab the first column
         target_col <- if("sp" %in% names(raw_shp)) "sp" else names(raw_shp)[1]
         
@@ -106,7 +106,7 @@ server <- function(input, output, session) {
         
         showNotification(paste("Map Uploaded. Found", length(new_list), "species."), type = "message")
         
-        # --- POPULATE THE RIGHT PANEL DROPDOWN ---
+        # ---- POPULATE THE RIGHT PANEL DROPDOWN ---
         spp_list <- unique(raw_shp$sp) %>% sort()
         updateSelectizeInput(session, "map_spp_select", 
                              choices = spp_list, 
@@ -116,7 +116,7 @@ server <- function(input, output, session) {
         
     })
     
-    # --- 🚀 THE MISSING REACTIVE: filtered_data ---
+    # ---- 🚀 THE MISSING REACTIVE: filtered_data ---
     # This takes the master pool and filters it based on the right panel selection
     filtered_data <- reactive({
         req(map_data())
@@ -143,7 +143,7 @@ server <- function(input, output, session) {
         # For this workflow, we process the current state.
         wrk_shp <- map_data()
         
-        # --- STEP 1: PROJECTION ---
+        # ---- STEP 1: PROJECTION ---
         if (input$modify_crs == TRUE) {
             req(input$map_projection)
             wrk_shp <- tryCatch({
@@ -159,7 +159,7 @@ server <- function(input, output, session) {
             }
         }
         
-        # --- STEP 2: BUFFERING (New Location) ---
+        # ---- STEP 2: BUFFERING (New Location) ---
         if (input$use_buffer_map == TRUE) {
             req(input$buffer_dist)
             
@@ -198,7 +198,7 @@ server <- function(input, output, session) {
             }
         }
         
-        # --- STEP 3: FINAL VALIDATION ---
+        # ---- STEP 3: FINAL VALIDATION ---
         wrk_shp <- st_make_valid(wrk_shp)
         
         # 1. Update the Master Reactive (Crucial: This saves your work!)
@@ -225,11 +225,11 @@ server <- function(input, output, session) {
         showNotification("Settings Applied & Species List Updated!", type = "message")
     })
     
-    # =========================================================================
-    #  MAP DISPLAY (Leaflet Adapter) ----
-    # =========================================================================
     
-    # --- 1. INITIAL MAP SETUP (Must be active!) ---
+    #  MAP DISPLAY (Leaflet Adapter) ----
+    
+    
+    # ---- 1. INITIAL MAP SETUP (Must be active!) ---
     output$map <- renderLeaflet({
         leaflet() %>%
             addProviderTiles(providers$CartoDB.Positron) %>%
@@ -237,7 +237,7 @@ server <- function(input, output, session) {
     })
     
     
-    # --- UNIFIED MAP DISPLAY ---
+    # ---- UNIFIED MAP DISPLAY ---
     observe({
         req(filtered_data())
         
@@ -275,7 +275,7 @@ server <- function(input, output, session) {
         showNotification("Map View Reset", type = "message")
     })
     
-    # --- Live Map Update (Leaflet Adapter) ----
+    # ---- Live Map Update (Leaflet Adapter) ----
     observe({
         req(map_data())
         
@@ -294,7 +294,7 @@ server <- function(input, output, session) {
             flyToBounds(lng1 = bb[1], lat1 = bb[2], lng2 = bb[3], lat2 = bb[4])
     })
     
-    # --- Whenever map_raw changes, it updates the background map
+    # ---- Whenever map_raw changes, it updates the background map
     observe({
         req(map_data())
         
@@ -312,7 +312,7 @@ server <- function(input, output, session) {
             )
     })
     
-    # --- Workshop Outputs (Skeletons) ----
+    # ---- Workshop Outputs (Skeletons) ----
     output$map_shp_names <- renderText({
         if(is.null(input$filemap)) return("Waiting for map upload...")
         paste("Columns:", paste(names(map_data()), collapse = ", "))
@@ -323,7 +323,7 @@ server <- function(input, output, session) {
         paste("Original CRS:", st_crs(map_data())$input)
     })
     
-    # --- CS MATRIX UPLOAD HANDLER ----
+    # ---- CS MATRIX UPLOAD HANDLER ----
     observeEvent(input$upload_cs_matrix, {
         req(input$upload_cs_matrix)
         
@@ -347,9 +347,9 @@ server <- function(input, output, session) {
     })
     
     
-    # =========================================================================
-    # --- SCAN ENGINE (Graph Topology) ----
-    # =========================================================================
+    
+    # ---- SCAN ENGINE (Graph Topology) ----
+    
     
     # 1. Reactive Graph Object (Updates whenever Slider or Matrix changes)
     scan_graph <- reactive({
@@ -394,7 +394,7 @@ server <- function(input, output, session) {
         msg <- paste("SCAN Complete!", n_groups, "groups found at current threshold.")
         showNotification(msg, type = "message")
         
-        # --- HERE YOU WOULD SAVE RESULTS FOR DOWNLOAD ---
+        # ---- HERE YOU WOULD SAVE RESULTS FOR DOWNLOAD ---
         # scan_final_data(scan_results_df) # (If you define this reactive later)
     })
     
@@ -409,9 +409,9 @@ server <- function(input, output, session) {
             Value = c(igraph::vcount(g), igraph::ecount(g), igraph::components(g)$no)
         )
     }, options = list(dom = 't'))
-    # ==============================================================================
+    
     #  CONTEXT-AWARE RIGHT PANEL LOGIC
-    # ==============================================================================
+    
     
     output$right_panel_container <- renderUI({
       
@@ -426,7 +426,7 @@ server <- function(input, output, session) {
         panel_content <- NULL
         panel_title <- ""
         
-        # --- LOGIC TREE (Define Content) ---
+        # ---- LOGIC TREE (Define Content) ---
         
         # CASE A: SCAN Analysis
         if (!is.null(top_lvl) && top_lvl == "SCAN Analysis") {
@@ -479,7 +479,7 @@ server <- function(input, output, session) {
             )
         }
         
-        # --- RENDER THE SIDEBAR (Only if content exists) ---
+        # ---- RENDER THE SIDEBAR (Only if content exists) ---
         if (!is.null(panel_content)) {
             
             # Dynamic CSS for the Glass Look
@@ -510,7 +510,7 @@ server <- function(input, output, session) {
         }
     })
         
-   # --- CS MINI INSPECTOR (Right Panel) ---
+   # ---- CS MINI INSPECTOR (Right Panel) ---
     output$mini_nodes_table <- renderTable({
         # 1. Check if data exists
         req(cs_matrix_data())
@@ -529,9 +529,9 @@ server <- function(input, output, session) {
         
     }, width = "100%", hover = TRUE, bordered = TRUE)
     
-    # =========================================================================
-    # --- THE FIXED CS CALCULUS ENGINE (SF SERIAL) ----
-    # =========================================================================
+    
+    # ---- THE FIXED CS CALCULUS ENGINE (SF SERIAL) ----
+    
     
     observeEvent(input$calculate_Cs, {
         req(map_data()) 
@@ -563,10 +563,10 @@ server <- function(input, output, session) {
         # 2. ROUTING LOGIC (The Switchboard)
         # ------------------------------------------------
         
-        # >>> BRANCH 1: SF ENGINE (Standard Vector) <<<
+        # >>> BRANCH 1: SF ENGINE (Standard Vector) <<< ----
         if (input$calc_engine == "engine_sf") {
             
-            # --- Sub-Branch: SERIAL Mode ---
+            # ---- Sub-Branch: SERIAL Mode ----
             if (input$calc_mode == "mode_serial") {
                 
                 # OPTION A: CHUNKED (Low RAM)
@@ -589,7 +589,7 @@ server <- function(input, output, session) {
                     final_cs <- bind_rows(results_list)
                 } 
                 
-                # OPTION B: LOAD ALL (Fastest, if RAM allows)
+                # OPTION B: LOAD ALL (Fastest, if RAM allows) ----
                 else { 
                     showNotification("Running: SF | Serial | Full Load", type = "message")
                     
@@ -600,21 +600,22 @@ server <- function(input, output, session) {
                 }
                 
             } 
-            # --- Sub-Branch: PARALLEL Mode ---
+            # ---- Sub-Branch: PARALLEL Mode ---
             else { 
                 showNotification("SF Parallel Mode: Under Development 🚧", type = "warning")
                 return() # Stop here
             }
             
         } 
-        # >>> BRANCH 2: TERRA ENGINE <<<
+        
+        # >>> BRANCH 2: TERRA ENGINE <<< ----
         else { 
             showNotification("Terra Engine: Under Development 🚧", type = "warning")
             return()
         }
         
-        # 3. POST-PROCESSING (Save and Clean)
-        # ------------------------------------------------
+        # 3. POST-PROCESSING (Save and Clean) ----
+        
         if (!is.null(final_cs)) {
             showNotification("Filtering & Cleaning Table...", type = "message")
             
@@ -630,7 +631,7 @@ server <- function(input, output, session) {
                 select(-key) |>
                 arrange(desc(Cs))
             
-            # --- 🚀 CRITICAL FIX: SAVE TO GLOBAL REACTIVE ---
+            # ---- 🚀 CRITICAL FIX: SAVE TO GLOBAL REACTIVE ---
             cs_matrix_data(final_cs_clean)
             
             showNotification("Calculation Finished! Check Right Panel.", type = "message", duration = 5)
@@ -642,9 +643,42 @@ server <- function(input, output, session) {
     }) # End ObserverEvent
 
     
-    # =========================================================================
-    # --- E. DATA EXPORT HUB ---
-    # =========================================================================
+    # --- Floating Box Content ----
+    
+    # 1. Summary Text (e.g. "Found 5 Chorotypes")
+    output$scan_summary_text <- renderUI({
+      req(scan_graph())
+      g <- scan_graph()
+      n_groups <- igraph::components(g)$no
+      n_sp <- igraph::vcount(g)
+      
+      HTML(paste0("<b>", n_groups, " Chorotypes</b> found<br/>",
+                  "<small>(containing ", n_sp, " species)</small>"))
+    })
+    
+    # 2. The List Table (Species | Group)
+    output$scan_chorotype_list <- renderTable({
+      req(scan_graph())
+      g <- scan_graph()
+      
+      # Calculate components
+      comps <- igraph::components(g)
+      
+      # Create Data Frame
+      df <- data.frame(
+        Species = names(comps$membership),
+        Group = as.integer(comps$membership)
+      )
+      
+      # Sort by Group ID, then Species Name
+      df <- df %>% arrange(Group, Species)
+      
+      return(df)
+    }, striped = TRUE, hover = TRUE, width = "100%")
+    
+    
+
+    # ---- E. DATA EXPORT HUB ----
     
     # 1. Dynamic Button Renderer
     # Only shows the download button if map_data() actually exists
@@ -695,9 +729,9 @@ server <- function(input, output, session) {
         contentType = "application/zip"
     )
 
-    # =========================================================================
-    # --- OUTPUT: MINI NODES TABLE (The "Missing Link") ---
-    # =========================================================================
+    
+    # ---- OUTPUT: MINI NODES TABLE (The "Missing Link") ----
+    
     
     output$mini_nodes_table <- renderTable({
         # 1. Wait for data
@@ -717,11 +751,108 @@ server <- function(input, output, session) {
         # We explicitly select and format columns to avoid conflicts
         df %>%
             ungroup() %>%
-            head(5) %>%
+            head(25) %>%
             dplyr::select(Sp1 = sp1, Sp2 = sp2, Cs) %>%
             dplyr::mutate(Cs = sprintf("%.3f", as.numeric(Cs))) %>%
             as.data.frame()
         
     }, width = "100%", hover = TRUE, bordered = TRUE, striped = TRUE)
     
-}
+    
+    
+    # ---- UI HELPER: CHECK IF CS DATA EXISTS ----
+    
+    output$cs_data_available <- reactive({
+      !is.null(cs_matrix_data()) && nrow(cs_matrix_data()) > 0
+    })
+    outputOptions(output, "cs_data_available", suspendWhenHidden = FALSE)
+    
+    # Mini Table for the Floating Box
+    output$mini_nodes_table <- renderTable({
+      req(cs_matrix_data())
+      df <- cs_matrix_data()
+      if (nrow(df) == 0) return(data.frame(Status = "No data"))
+      
+      # Show top 10 strongest pairs
+      df %>% arrange(desc(Cs)) %>% head(10) %>%
+        mutate(Cs = sprintf("%.3f", Cs)) %>%
+        select(Sp1 = sp1, Sp2 = sp2, Cs)
+    })
+    
+    
+    # ---- UI HELPER: CHECK IF SCAN RESULTS EXIST ----
+    
+    output$scan_results_ready <- reactive({
+      !is.null(scan_graph())
+    })
+    # Force this to be calculated even if hidden so the conditionalPanel sees it
+    outputOptions(output, "scan_results_ready", suspendWhenHidden = FALSE)
+    
+    
+    # =========================================================================
+    # --- DOWNLOAD HANDLERS (FINAL FIXED VERSION) ----
+    # =========================================================================
+    
+    # 1. Download Reprojected Map (Zipped Shapefile)
+    output$dl_map <- downloadHandler(
+      filename = function() { paste0("SCAN_Map_Export_", Sys.Date(), ".zip") },
+      content = function(file) {
+        req(map_data())
+        temp_dir <- tempdir()
+        file_base <- "scan_map_export"
+        
+        # Save SF object to temp folder
+        sf::st_write(map_data(), file.path(temp_dir, paste0(file_base, ".shp")), delete_dsn = TRUE, quiet = TRUE)
+        
+        # Zip all related files (.shp, .dbf, .shx, etc)
+        zip_files <- list.files(temp_dir, pattern = file_base, full.names = TRUE)
+        utils::zip(zipfile = file, files = zip_files, flags = "-j")
+      },
+      contentType = "application/zip"
+    )
+    
+    # 2. Download Cs Matrix (Variable 'cs_h' used for both buttons)
+    cs_h <- downloadHandler(
+      filename = function() { paste0("SCAN_Cs_Matrix_", Sys.Date(), ".csv") },
+      content = function(file) {
+        req(cs_matrix_data())
+        write.csv(cs_matrix_data(), file, row.names = FALSE)
+      }
+    )
+    output$dl_cs <- cs_h
+    output$dl_cs_float <- cs_h
+    
+    # 3. Download Chorotypes (Variable 'choro_h' used for both buttons)
+    choro_h <- downloadHandler(
+      filename = function() { paste0("SCAN_Groups_", Sys.Date(), ".csv") },
+      content = function(file) {
+        req(scan_graph()) # Requires the graph to be built
+        comps <- igraph::components(scan_graph())
+        df <- data.frame(Species = names(comps$membership), Group_ID = as.numeric(comps$membership))
+        write.csv(df, file, row.names = FALSE)
+      }
+    )
+    output$dl_chorotypes <- choro_h
+    output$dl_chorotypes_float <- choro_h
+    
+    # 4. Download Edges (Variable 'edges_h' used for both buttons)
+    edges_h <- downloadHandler(
+      filename = function() { paste0("SCAN_Edges_", Sys.Date(), ".csv") },
+      content = function(file) {
+        req(scan_graph())
+        write.csv(igraph::as_data_frame(scan_graph(), what = "edges"), file, row.names = FALSE)
+      }
+    )
+    output$dl_edges <- edges_h
+    output$dl_edges_float <- edges_h
+    
+    # 5. Download Nodes (Settings tab only)
+    output$dl_nodes <- downloadHandler(
+      filename = function() { paste0("SCAN_Nodes_", Sys.Date(), ".csv") },
+      content = function(file) {
+        req(scan_graph())
+        write.csv(igraph::as_data_frame(scan_graph(), what = "vertices"), file, row.names = FALSE)
+      }
+    )
+    
+} # End of Server Function (Garanta que esta seja a ÚNICA chave fechando o server)

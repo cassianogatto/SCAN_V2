@@ -28,6 +28,34 @@ ui <- fillPage(
       max-height: 85vh; overflow-y: auto; background-color: rgba(255,255,255,0.9);
       padding: 30px; border-radius: 10px; z-index: 1500;
     }
+    /* --- GLASS EFFECT FOR FLOATING PANELS --- */
+    
+    /* 1. Remove a cor sólida padrão e aplica transparência no container */
+    #cs_floating_box, #scan_floating_box {
+        background-color: rgba(255, 255, 255, 0.85) !important; /* Vidro Branco */
+        backdrop-filter: blur(5px); /* Desfoque chique (opcional, mas bonito) */
+        border: 1px solid rgba(0,0,0,0.1);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.2) !important;
+    }
+
+    /* 2. Garante que o corpo do painel seja transparente para herdar o vidro */
+    #cs_floating_box .panel-body, #scan_floating_box .panel-body {
+        background-color: transparent !important;
+    }
+
+    /* 3. Ajusta os cabeçalhos para serem semi-transparentes também */
+    /* Azul (Info) */
+    #cs_floating_box .panel-heading {
+        background-color: rgba(58, 135, 173, 0.15) !important; 
+        color: #31708f;
+        border-bottom: 1px solid rgba(58, 135, 173, 0.2);
+    }
+    /* Verde (Success) */
+    #scan_floating_box .panel-heading {
+        background-color: rgba(60, 118, 61, 0.15) !important;
+        color: #3c763d;
+        border-bottom: 1px solid rgba(60, 118, 61, 0.2);
+    }
   "),
     
 
@@ -361,77 +389,124 @@ ui <- fillPage(
     ), # conditional panel scan
     
     # --- 7. Settings & Files ----
-    conditionalPanel(
-        condition = "input.top_nav == 'Settings&Files'",
-        absolutePanel(
-            top = 70, left = "15%", right = "15%",
-            div(class = "scroll-panel",
-                h2(icon("sliders-h"), " Settings & Data Management"),
-                
-                # A. VISUALIZATION SETTINGS ----
-                box(title = "Visualization Preferences", status = "primary", solidHeader = TRUE, width = NULL,
-                    
-                    tags$h5("Interface Customization"),
-                    
-                    # The Transparency Slider
-                    sliderInput("panel_opacity", "Right Panel Opacity:", 
-                                min = 0.5, max = 1.0, value = 0.95, step = 0.05),
-                    
-                    helpText("Lower values make the Context Panel more transparent.")
+  # =========================================================================
+  # --- PANEL: SETTINGS & FILES (Downloads) ----
+  # =========================================================================
+  conditionalPanel(
+    condition = "input.top_nav == 'Settings&Files'",
+    absolutePanel(
+      top = 70, left = "15%", right = "15%",
+      div(class = "scroll-panel",
+          h2(icon("download"), "Data Export & Downloads"),
+          p("Download processed maps, calculated matrices, and analysis results."),
+          hr(),
+          
+          # --- SECTION 1: PROCESSED INPUTS ---
+          box(title = "1. Processed Inputs", status = "info", width = NULL, solidHeader = TRUE,
+              fluidRow(
+                column(6, 
+                       h4("Geospatial Data"),
+                       p("The reprojected/buffered map currently in memory."),
+                       downloadButton("dl_map", "Download Map Shapefile (.zip)", class = "btn-primary btn-block")
                 ),
-                
-                # B. DATA EXPORT HUB ----
-                box(title = "Data Export Hub", status = "success", solidHeader = TRUE, width = NULL,
-                    
-                    tags$h4("Available Objects"),
-                    p("Select the datasets you wish to download. Only ready-to-use objects are active."),
-                    
-                    # 1. The Map Download Section
-                    wellPanel(
-                        fluidRow(
-                            column(8, 
-                                   tags$strong(icon("map"), " Processed Map (Shapefile)"),
-                                   tags$p(class="text-muted", "Includes all projections, buffers, and validations applied in the Workshop.")
-                            ),
-                            column(4, 
-                                   # We use a UI output so we can disable the button if no map exists
-                                   uiOutput("download_map_ui")
-                            )
-                        )
-                    ),
-                    
-                    # 2. Future Placeholders (Cs, Graph, etc.)
-                    wellPanel(
-                        style = "opacity: 0.6;", # Dimmed to show they are not ready yet
-                        fluidRow(
-                            column(8, tags$strong(icon("table"), " Cs Index Table"), tags$small(" (Run calculus to enable)")),
-                            column(4, actionButton("dummy_btn", "Not Available", icon = icon("ban"), disabled = TRUE))
-                        )
-                    )
-                ), # endes data export hub
-            )
-        ),  # ends absolute panel settings and files
-    ),  # ends conditional panel settings and files
+                column(6, 
+                       h4("Calculated Matrix"),
+                       p("The Cs matrix currently loaded/calculated."),
+                       downloadButton("dl_cs", "Download Cs Matrix (.csv)", class = "btn-primary btn-block")
+                )
+              )
+          ),
+          
+          # --- SECTION 2: SCAN RESULTS ---
+          box(title = "2. SCAN Analysis Results", status = "success", width = NULL, solidHeader = TRUE,
+              p("Results based on the current 'Cs Threshold' defined in the SCAN tab."),
+              fluidRow(
+                column(4, 
+                       downloadButton("dl_chorotypes", "📥 Chorotypes (Groups)", class = "btn-success btn-block")
+                ),
+                column(4, 
+                       downloadButton("dl_edges", "📥 Graph Edges", class = "btn-default btn-block")
+                ),
+                column(4, 
+                       downloadButton("dl_nodes", "📥 Graph Nodes", class = "btn-default btn-block")
+                )
+              ),
+              br(),
+              tags$small(icon("info-circle"), " Note: You must run the SCAN analysis first for these to be available.")
+          )
+      )
+    )
+  ),
+  
+  # =========================================================================
+  # --- FLOATING BOX: CS PREVIEW (Appears only on Cs Tab) ----
+  # =========================================================================
+  conditionalPanel(
+    # Condition: User is on 'SCAN Analysis' -> 'Cs' tab AND data is available
+    condition = "input.top_nav == 'SCAN Analysis' && input.analysis_subtabs == 'Cs' && output.cs_data_available == true",
     
-    # # --- OLD fixed Right Context Panel ----
-    # absolutePanel(
-    #   id = "smart_right_panel",
-    #   class = "panel panel-default",
-    #   fixed = TRUE, top = 60, right = 20, width = 350, height = "auto",
-    #   style = "z-index: 1050; background-color: rgba(255, 255, 255, 0.95); border-radius: 5px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);",
-    #   
-    #   div(style = "padding: 10px; background-color: #2c3e50; color: white; border-radius: 5px 5px 0 0; cursor: pointer;",
-    #       id = "right_panel_header",
-    #       onclick = "$('#right_panel_content').slideToggle();",
-    #       icon("cogs"), " Context Tools ", icon("caret-down", style="float:right;")
-    #   ),
-    #   
-    #   div(id = "right_panel_content", style = "padding: 15px; max-height: 80vh; overflow-y: auto;",
-    #       uiOutput("right_panel_container")
-    #   )
-    # ),
+    absolutePanel(
+      id = "cs_floating_box",
+      class = "panel panel-info",
+      fixed = TRUE, draggable = TRUE,
+      top = 130, right = 20, width = 300, height = "auto",
+      style = "z-index: 2000;  box-shadow: 0 4px 8px rgba(0,0,0,0.3);",
+      
+      #div(class = "panel-heading", tags$h4("📊 Cs Results Preview", style="margin: 0; font-size: 16px;")),
+      div(class = "panel-body", style = "max-height: 400px; overflow-y: auto; padding: 10px;",
+          p(class = "text-muted", "Top strong connections:"),
+          tableOutput("mini_nodes_table"), # Defined in server
+          hr(),
+          downloadButton("dl_cs_float", "Download Full Matrix", class = "btn-xs btn-primary btn-block")
+      )
+    )
+  ),
+  
+  
+  # =========================================================================
+  # --- FLOATING BOX: SCAN RESULTS (Appears only on SCAN Tab) ----
+  # =========================================================================
+  conditionalPanel(
+    # Condition: User is on 'SCAN Analysis' -> 'SCAN' tab AND results exist
+    condition = "input.top_nav == 'SCAN Analysis' && input.analysis_subtabs == 'SCAN' && output.scan_results_ready == true",
     
-    # --- The Glass Sidebar Container ---
+    absolutePanel(
+      id = "scan_floating_box",
+      class = "panel panel-success", # Green style for Success/Results
+      fixed = TRUE, draggable = TRUE,
+      top = 130, right = 20, width = 320, height = "auto",
+      style = "z-index: 2000;  box-shadow: 0 4px 8px rgba(0,0,0,0.3);",
+      
+      # --- Header ---
+      div(class = "panel-heading", 
+          tags$h4("🧬 SCAN Chorotypes", style="margin: 0; font-size: 16px;")
+      ),
+      
+      # --- Body: List of Groups ---
+      div(class = "panel-body", style = "padding: 10px;",
+          
+          # 1. Summary Text
+          htmlOutput("scan_summary_text"),
+          hr(style="margin: 5px 0;"),
+          
+          # 2. Scrollable List of Chorotypes
+          p(class = "text-muted", style="font-size: 12px;", "Species & Group Assignment:"),
+          div(style = "max-height: 300px; overflow-y: auto; border: 1px solid #ddd; background: white;",
+              tableOutput("scan_chorotype_list")
+          ),
+          
+          hr(),
+          
+          # 3. Quick Downloads
+          div(class = "btn-group-vertical", style="width: 100%;",
+              downloadButton("dl_chorotypes_float", "📥 Download List (.csv)", class = "btn-xs btn-success"),
+              downloadButton("dl_edges_float", "📥 Download Graph Edges", class = "btn-xs btn-default")
+          )
+      )
+    )
+  ),
+    
+    # --- The Glass Sidebar Container ----
     # The renderUI now generates the entire sidebar structure (Position, Color, Content)
     uiOutput("right_panel_container")
     
