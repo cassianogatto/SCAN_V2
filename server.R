@@ -19,6 +19,7 @@ library(lwgeom)      # Para corrigir geometrias (st_make_valid)
 library(RColorBrewer)# Para a paleta de cores
 library(DT)          # Para as tabelas modernas
 library(stringr)
+library(shinyjs)
 
 # --- 🚀 FIX: INCREASE UPLOAD LIMIT ---
 # Set limit to 500 MB (Default is only 5MB)
@@ -274,13 +275,6 @@ server <- function(input, output, session) {
         showNotification("Map View Reset", type = "message")
     })
     
-    # # Initial Map Setup
-    # output$map <- renderLeaflet({
-    #     leaflet() %>%
-    #         addProviderTiles(providers$CartoDB.Positron) %>%
-    #         setView(lng = -45, lat = -15, zoom = 4)
-    # })
-    
     # --- Live Map Update (Leaflet Adapter) ----
     observe({
         req(map_data())
@@ -318,11 +312,6 @@ server <- function(input, output, session) {
             )
     })
     
-    # --- If species are selected the maps change 
-    
-    
-    
-    
     # --- Workshop Outputs (Skeletons) ----
     output$map_shp_names <- renderText({
         if(is.null(input$filemap)) return("Waiting for map upload...")
@@ -334,112 +323,214 @@ server <- function(input, output, session) {
         paste("Original CRS:", st_crs(map_data())$input)
     })
     
+    # --- CS MATRIX UPLOAD HANDLER ----
+    observeEvent(input$upload_cs_matrix, {
+        req(input$upload_cs_matrix)
+        
+        # 1. Read the CSV
+        df <- read.csv(input$upload_cs_matrix$datapath)
+        
+        # 2. Validation: Ensure it has the right columns
+        required_cols <- c("sp1", "sp2", "Cs")
+        if (!all(required_cols %in% names(df))) {
+            showNotification("Error: CSV must have 'sp1', 'sp2', and 'Cs' columns.", type = "error")
+            return()
+        }
+        
+        # 3. Save to Global Reactive (This triggers the Right Panel!)
+        cs_matrix_data(df)
+        
+        showNotification(paste("Matrix Uploaded:", nrow(df), "pairs loaded."), type = "message")
+        
+        # Optional: Switch focus to the Cs tab to see the result
+        # updateTabsetPanel(session, "analysis_subtabs", selected = "Cs")
+    })
+    
+    
+    # =========================================================================
+    # --- SCAN ENGINE (Graph Topology) ----
+    # =========================================================================
+    
+    # 1. Reactive Graph Object (Updates whenever Slider or Matrix changes)
+    scan_graph <- reactive({
+        req(cs_matrix_data())
+        
+        # Get the threshold from the Right Panel (or default to 0.5)
+        # Note: If the right panel hasn't loaded yet, default to 0.5
+        th <- if(is.null(input$scan_ct_slider)) 0.5 else input$scan_ct_slider
+        
+        # Filter the matrix
+        links <- cs_matrix_data() %>% 
+            filter(Cs >= th)
+        
+        # If no links remain, return NULL
+        if(nrow(links) == 0) return(NULL)
+        
+        # Build the Graph (Undirected)
+        g <- igraph::graph_from_data_frame(links, directed = FALSE)
+        return(g)
+    })
+    
+    # 2. The "RUN SCAN" Button Logic (The manual trigger)
+    observeEvent(input$run_scan, {
+        req(scan_graph())
+        
+        g <- scan_graph()
+        
+        # Calculate Components (The "Chorotypes")
+        comps <- igraph::components(g)
+        
+        # Extract Results
+        n_groups <- comps$no
+        group_sizes <- table(comps$membership)
+        
+        # Create a Summary Dataframe
+        scan_results_df <- data.frame(
+            Species = names(comps$membership),
+            Group_ID = as.numeric(comps$membership)
+        )
+        
+        # Show a Notification with the results
+        msg <- paste("SCAN Complete!", n_groups, "groups found at current threshold.")
+        showNotification(msg, type = "message")
+        
+        # --- HERE YOU WOULD SAVE RESULTS FOR DOWNLOAD ---
+        # scan_final_data(scan_results_df) # (If you define this reactive later)
+    })
+    
+    # 3. Output for the "SCAN" Tab (Preview Table)
+    output$table_download_preview <- DT::renderDT({
+        req(scan_graph())
+        
+        # Show a simple summary of the current graph
+        g <- scan_graph()
+        data.frame(
+            Metric = c("Nodes (Species)", "Edges (Connections)", "Clusters"),
+            Value = c(igraph::vcount(g), igraph::ecount(g), igraph::components(g)$no)
+        )
+    }, options = list(dom = 't'))
     # ==============================================================================
     #  CONTEXT-AWARE RIGHT PANEL LOGIC
     # ==============================================================================
     
     output$right_panel_container <- renderUI({
-        
-        # 1. Get Navigation State (MATCH THE UI NAME!)
+      
+        # 1. Get Navigation State
         top_lvl <- input$top_nav
         sub_lvl <- input$analysis_subtabs
         
-        # Initialize content as NULL (hidden)
-        panel_content <- tagList(
-            p(class="text-muted", "Select species to highlight on the workshop map."),
-            
-            # 🚀 FIX: READ FROM MEMORY
-            selectizeInput("map_spp_select", NULL, 
-                           choices = spp_choices(), # <--- Directly reading the reactive value
-                           multiple = TRUE, 
-                           options = list(placeholder = "Select species...")),
-            
-            actionButton("btn_map_reset", "Reset View", icon = icon("refresh"), size = "xs")
-        )
+        # 2. Get User Transparency (Default to 0.95 if NULL)
+        alpha <- if(is.null(input$panel_opacity)) 0.95 else input$panel_opacity
+        
+        # Initialize content as NULL (Hidden by default)
+        panel_content <- NULL
         panel_title <- ""
         
-        # --- LOGIC TREE ---
+        # --- LOGIC TREE (Define Content) ---
         
-        # CASE A: Top Level = "SCAN Analysis"
+        # CASE A: SCAN Analysis
         if (!is.null(top_lvl) && top_lvl == "SCAN Analysis") {
             
-            # Check Sub-Tabs
             if (!is.null(sub_lvl) && sub_lvl == "Map") {
-                # --- MAP TOOLS ---
                 panel_title <- "Map Filters"
                 panel_content <- tagList(
                     p(class="text-muted", "Select species to highlight on the workshop map."),
-                    selectizeInput("map_spp_select", NULL, choices = NULL, multiple = TRUE, 
+                    
+                    # Memory-based Selectize
+                    selectizeInput("map_spp_select", NULL, 
+                                   choices = spp_choices(), 
+                                   multiple = TRUE, 
                                    options = list(placeholder = "Select species...")),
-                    actionButton("btn_map_reset", "Reset View", icon = icon("refresh"), size = "xs")
+                    
+                    actionButton("btn_map_reset", "Reset View", icon = icon("refresh"), size = "xs", 
+                                 style = "width: 100%; margin-top: 5px;")
                 )
-                
             } else if (sub_lvl == "Cs") {
-                # --- MATRIX TOOLS ---
-                # Only show if matrix exists
+                
+                # Check if matrix exists
+                has_data <- !is.null(cs_matrix_data())
                 validate(need(cs_matrix_data(), "No Matrix Calculated"))
                 
                 panel_title <- "Matrix Inspector"
                 panel_content <- tagList(
-                    p(strong("Dimensions:"), paste(nrow(cs_matrix_data()), "x", ncol(cs_matrix_data()))),
+                    # Show dimensions if data exists, otherwise show status
+                    if(has_data) 
+                        p(strong("Dimensions:"), paste(nrow(cs_matrix_data()), "rows")) 
+                    else 
+                        p(class="text-warning", icon("exclamation-circle"), " No Matrix Calculated yet."),
+                    
                     hr(),
-                    p("Top Connected Nodes:"),
-                    tableOutput("mini_nodes_table") # You need to define this output below
-                )
-                
-            } else if (sub_lvl == "SCAN") {
-                # --- CHOROTYPE TOOLS ----
-                panel_title <- "Chorotype Settings"
-                panel_content <- tagList(
-                    sliderInput("scan_ct_slider", "Ct Threshold:", min=0, max=1, value=0.5),
-                    selectInput("scan_focus_group", "Highlight Group:", choices = c("All", "A", "B"))
+                    p(strong("Top 5 Connected Pairs:")),
+                    
+                    # This is where the table should appear
+                    tableOutput("mini_nodes_table") 
                 )
             }
             
-            # CASE B: Top Level = "SCAN Viewer"
+        # CASE B: SCAN Viewer
         } else if (!is.null(top_lvl) && top_lvl == "SCAN Viewer") {
-            # --- VIEWER TOOLS ----
             panel_title <- "Viewer Controls"
             panel_content <- tagList(
-                h5("Visual Layers"),
-                checkboxInput("show_network", "Show Network", TRUE),
-                checkboxInput("show_map", "Show Map Overlay", TRUE),
-                hr(),
-                selectizeInput("viewer_spp_search", "Find Species:", choices = NULL)
+                 h5("Visual Layers"),
+                 checkboxInput("show_network", "Show Network", TRUE),
+                 checkboxInput("show_map", "Show Map Overlay", TRUE),
+                 hr(),
+                 selectizeInput("viewer_spp_search", "Find Species:", choices = NULL)
             )
         }
         
-        # --- RENDER THE BOX (If content exists) ----
+        # --- RENDER THE SIDEBAR (Only if content exists) ---
         if (!is.null(panel_content)) {
-            div(class = "box box-solid box-primary", # Uses AdminLTE styling
-                style = "background: rgba(255,255,255,0.9); box-shadow: 0 4px 8px rgba(0,0,0,0.3);",
+            
+            # Dynamic CSS for the Glass Look
+            sidebar_style <- paste0(
+                "position: fixed; top: 50px; right: 0; bottom: 0; width: 280px;",
+                "background-color: rgba(255, 255, 255, ", alpha, ");",
+                "z-index: 1050; border-left: 1px solid rgba(0,0,0,0.1);",
+                "box-shadow: -2px 0 10px rgba(0,0,0,0.05);",
+                "display: flex; flex-direction: column;" 
+            )
+            
+            div(style = sidebar_style,
                 
-                # Header with Collapse Button
-                div(class = "box-header with-border",
-                    h3(class = "box-title", icon("cogs"), " ", panel_title),
-                    div(class = "box-tools pull-right",
-                        tags$button(type="button", class="btn btn-box-tool", 
-                                    onclick = "$('#right_panel_body').slideToggle()",
-                                    icon("minus"))
-                    )
+                # 1. Header 
+                div(style = "padding: 15px; background: rgba(44, 62, 80, 1.0); color: white; flex-shrink: 0;",
+                    h4(style="margin: 0;", icon("cogs"), " ", panel_title),
+                    tags$i(class="fa fa-times pull-right", style="cursor: pointer; opacity: 0.6;", 
+                           onclick = "$('#right_panel_container').hide()") 
                 ),
                 
-                # Body
-                div(id = "right_panel_body", class = "box-body",
+                # 2. Scrollable Body
+                div(style = "padding: 15px; overflow-y: auto; flex-grow: 1;",
                     panel_content
                 )
             )
         } else {
-            return(NULL) # Hide panel completely on "About" or "Settings"
+            return(NULL) 
         }
     })
-    
+        
+   # --- CS MINI INSPECTOR (Right Panel) ---
     output$mini_nodes_table <- renderTable({
-        # Logic to find top connected nodes
-    })
+        # 1. Check if data exists
+        req(cs_matrix_data())
+        
+        # 2. Get the data
+        df <- cs_matrix_data()
+        
+        # 3. Validation: Check if it is actually a data frame with rows
+        if (nrow(df) == 0) return(data.frame(Message = "No Cs pairs found > threshold"))
+        
+        # 4. Render Top 5 (Explicitly using dplyr to avoid conflicts)
+        df %>%
+            head(5) %>%
+            dplyr::select(Sp1 = sp1, Sp2 = sp2, Cs) %>%
+            dplyr::mutate(Cs = sprintf("%.3f", Cs)) # Format numbers nicely
+        
+    }, width = "100%", hover = TRUE, bordered = TRUE)
     
     # =========================================================================
-    # --- THE NEW CS CALCULUS SKELETON ----
+    # --- THE FIXED CS CALCULUS ENGINE (SF SERIAL) ----
     # =========================================================================
     
     observeEvent(input$calculate_Cs, {
@@ -448,21 +539,26 @@ server <- function(input, output, session) {
         # 1. PRE-PROCESSING
         showNotification("Preparing Data...", type = "message")
         
+        # Force the panel to show (in case you closed it)
+        shinyjs::runjs("$('#right_panel_container').show();") 
+        
+        # Note: This requires library(shinyjs) in your UI. 
+        # If you don't have shinyjs, just manually click the "Context Tools" header.
+        
         # A. Get Data (Uses the Projected Master Data)
         shapes <- map_data() 
         
         # B. Pre-Calculate Areas 
-        # If user applied Albers/Metric, st_area() now returns accurate METERS^2
+        # Note: If projected, st_area returns meters^2. We strip units for math.
         areas_df <- shapes |> 
             mutate(area_sp = st_area(geometry)) |> 
             st_drop_geometry() |> 
             select(sp, area_sp)
         
-        # ... rest of your code remains exactly the same ...
-        
         species_list <- unique(shapes$sp)
-        n_species <- length(species_list)
         
+        # Initialize result container
+        final_cs <- NULL
         
         # 2. ROUTING LOGIC (The Switchboard)
         # ------------------------------------------------
@@ -473,78 +569,74 @@ server <- function(input, output, session) {
             # --- Sub-Branch: SERIAL Mode ---
             if (input$calc_mode == "mode_serial") {
                 
-                # ... Strategy: CHUNKED (The "Old" Standard)
+                # OPTION A: CHUNKED (Low RAM)
                 if (input$memory_strategy == "mem_chunk") {
                     
                     showNotification("Running: SF | Serial | Chunked", type = "message")
                     
-                    # 1. Define Chunks
                     chunk_size <- input$chunk_size
                     chunks <- split(species_list, ceiling(seq_along(species_list) / chunk_size))
-                    
-                    # 2. Initialize Storage
                     results_list <- list()
                     
-                    # 3. Loop (Progress Bar)
                     withProgress(message = 'Calculating Cs (SF Serial)...', value = 0, {
                         for (i in seq_along(chunks)) {
-                            
-                            # CALL HELPER FUNCTION
                             chunk_res <- calculate_chunk_cs_engine(chunks[[i]], shapes, areas_df)
                             results_list[[i]] <- chunk_res
-                            
                             incProgress(1/length(chunks), detail = paste("Batch", i, "of", length(chunks)))
                         }
                     })
                     
-                    # 4. Bind Results # gem 21 dez 25
-                    
                     final_cs <- bind_rows(results_list)
-                    
-                    # --- 5. POST-PROCESSING (The missing steps) ---
-                    showNotification("Filtering & Cleaning Table...", type = "message")
-                    
-                    final_cs_clean <- final_cs |>
-                        # A. Filter Min Cs (Your Step 5)
-                        filter(Cs >= input$filter_Cs) |>
-                        
-                        # B. Remove Repetitions (Your Step 6)
-                        # This keeps only one version of the pair (e.g. sp1 < sp2)
-                        rowwise() |> 
-                        mutate(
-                            key = paste(sort(c(sp1, sp2)), collapse = "_")
-                        ) |>
-                        ungroup() |>
-                        distinct(key, .keep_all = TRUE) |>
-                        select(-key) |>
-                        arrange(desc(Cs))
-                    
-                    print("Calculation & Cleaning Finished!")
-                    
-                    # Output to global reactive or table
-                    # output$view_species_table <- renderDT(final_cs_clean)
-                    
                 } 
-                # ... Strategy: ALL (Direct)
-                else {
-                    showNotification("Running: SF | Serial | Full Load", type = "warning")
-                    # Placeholder: Logic to run st_intersection on the whole object at once
-                    # final_cs <- calculate_chunk_cs_engine(species_list, shapes, areas_df) 
+                
+                # OPTION B: LOAD ALL (Fastest, if RAM allows)
+                else { 
+                    showNotification("Running: SF | Serial | Full Load", type = "message")
+                    
+                    withProgress(message = 'Calculating Cs (Full)...', value = 0.5, {
+                        # Just treat the whole list as one chunk
+                        final_cs <- calculate_chunk_cs_engine(species_list, shapes, areas_df)
+                    })
                 }
                 
             } 
             # --- Sub-Branch: PARALLEL Mode ---
-            else { # mode_parallel
+            else { 
                 showNotification("SF Parallel Mode: Under Development 🚧", type = "warning")
-                # Placeholder for future/apply or foreach logic
+                return() # Stop here
             }
             
         } 
-        
-        # >>> BRANCH 2: TERRA ENGINE (High Performance) <<<
-        else { # engine_terra
+        # >>> BRANCH 2: TERRA ENGINE <<<
+        else { 
             showNotification("Terra Engine: Under Development 🚧", type = "warning")
-            # Placeholder: Convert sf -> vect -> terra intersect logic
+            return()
+        }
+        
+        # 3. POST-PROCESSING (Save and Clean)
+        # ------------------------------------------------
+        if (!is.null(final_cs)) {
+            showNotification("Filtering & Cleaning Table...", type = "message")
+            
+            final_cs_clean <- final_cs |>
+                # A. Filter Min Cs
+                filter(Cs >= input$filter_Cs) |>
+                
+                # B. Remove Repetitions (sp1-sp2 vs sp2-sp1)
+                rowwise() |> 
+                mutate(key = paste(sort(c(sp1, sp2)), collapse = "_")) |>
+                ungroup() |>
+                distinct(key, .keep_all = TRUE) |>
+                select(-key) |>
+                arrange(desc(Cs))
+            
+            # --- 🚀 CRITICAL FIX: SAVE TO GLOBAL REACTIVE ---
+            cs_matrix_data(final_cs_clean)
+            
+            showNotification("Calculation Finished! Check Right Panel.", type = "message", duration = 5)
+            
+            # Optional: Switch focus to the result tab if you have one
+            # updateTabsetPanel(session, "analysis_subtabs", selected = "Cs")
         }
         
     }) # End ObserverEvent
@@ -564,9 +656,7 @@ server <- function(input, output, session) {
         }
     })
 
-    # 2. Map Download Handler
-    
-    # 2. Map Download Handler (Base R Version)
+     # 2. Map Download Handler (Base R Version)
     output$download_processed_map <- downloadHandler(
         
         filename = function() {
@@ -605,47 +695,33 @@ server <- function(input, output, session) {
         contentType = "application/zip"
     )
 
+    # =========================================================================
+    # --- OUTPUT: MINI NODES TABLE (The "Missing Link") ---
+    # =========================================================================
     
-    # uuid pkg
-    # output$download_processed_map <- downloadHandler(
-    #     
-    #     filename = function() {
-    #         # Naming convention: SCAN_Map_[Date].zip
-    #         paste0("SCAN_Map_Processed_", Sys.Date(), ".zip")
-    #     },
-    #     
-    #     content = function(file) {
-    #         # A. Setup Temporary Directory
-    #         # We need a clean folder to write the shapefile components
-    #         temp_dir <- tempdir()
-    #         uuid <- uuid::UUIDgenerate() # Unique ID to avoid file conflicts
-    #         target_dir <- file.path(temp_dir, uuid)
-    #         dir.create(target_dir)
-    #         
-    #         # B. Get the Data
-    #         # This grabs the CURRENT state (Projected, Buffered, Validated)
-    #         data_to_save <- map_data()
-    #         
-    #         # C. Write Shapefile Parts
-    #         # Note: delete_dsn=TRUE overwrites if exists
-    #         layer_name <- "SCAN_Processed_Map"
-    #         sf::st_write(data_to_save, dsn = file.path(target_dir, paste0(layer_name, ".shp")), delete_dsn = TRUE, quiet = TRUE)
-    #         
-    #         # D. Zip It Up
-    #         # We must zip the files inside the target_dir
-    #         zip_files <- list.files(target_dir, full.names = TRUE)
-    #         utils::zip(zipfile = file, files = zip_files, flags = "-j") # -j flattens paths (junk paths)
-    #         
-    #         # E. Cleanup (Optional, but polite)
-    #         unlink(target_dir, recursive = TRUE)
-    #     },
-    #     contentType = "application/zip"
-    # )
-    
-    
-    
-    
-    
-    
+    output$mini_nodes_table <- renderTable({
+        # 1. Wait for data
+        req(cs_matrix_data())
+        
+        # 2. Get data & Debug
+        df <- cs_matrix_data()
+        print("--- Debug: Checking Cs Data for Table ---")
+        print(head(df)) # Look at your Console to see if data appears here!
+        
+        # 3. Handle Empty Results
+        if (nrow(df) == 0) {
+            return(data.frame(Status = "No pairs found above threshold."))
+        }
+        
+        # 4. Format for Display
+        # We explicitly select and format columns to avoid conflicts
+        df %>%
+            ungroup() %>%
+            head(5) %>%
+            dplyr::select(Sp1 = sp1, Sp2 = sp2, Cs) %>%
+            dplyr::mutate(Cs = sprintf("%.3f", as.numeric(Cs))) %>%
+            as.data.frame()
+        
+    }, width = "100%", hover = TRUE, bordered = TRUE, striped = TRUE)
     
 }

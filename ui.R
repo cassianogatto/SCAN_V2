@@ -5,6 +5,7 @@
 library(shiny)
 library(leaflet)
 library(shinydashboard)
+library(shinyjs)
 
 ui <- fillPage(
     # --- 1. CSS & Header ----
@@ -30,8 +31,7 @@ ui <- fillPage(
   "),
     
 
-    # --- 1. Top Navigation Bar (Updated) ---
-  # --- 2. Top Navigation Bar (Updated) ---
+  # ---  Top Navigation Bar (Updated) ----
   tags$div(class = "top-nav-bar",
            
            # ABOUT
@@ -368,12 +368,19 @@ ui <- fillPage(
             div(class = "scroll-panel",
                 h2(icon("sliders-h"), " Settings & Data Management"),
                 
-                # A. VISUALIZATION SETTINGS (Placeholder for future)
-                box(title = "Visualization Preferences", status = "primary", solidHeader = TRUE, width = NULL, collapsed = TRUE, collapsible = TRUE,
-                    helpText("Future settings for legends, colors, line widths, and transparency will go here.")
+                # A. VISUALIZATION SETTINGS ----
+                box(title = "Visualization Preferences", status = "primary", solidHeader = TRUE, width = NULL,
+                    
+                    tags$h5("Interface Customization"),
+                    
+                    # The Transparency Slider
+                    sliderInput("panel_opacity", "Right Panel Opacity:", 
+                                min = 0.5, max = 1.0, value = 0.95, step = 0.05),
+                    
+                    helpText("Lower values make the Context Panel more transparent.")
                 ),
                 
-                # B. DATA EXPORT HUB
+                # B. DATA EXPORT HUB ----
                 box(title = "Data Export Hub", status = "success", solidHeader = TRUE, width = NULL,
                     
                     tags$h4("Available Objects"),
@@ -401,29 +408,31 @@ ui <- fillPage(
                             column(4, actionButton("dummy_btn", "Not Available", icon = icon("ban"), disabled = TRUE))
                         )
                     )
-                )
+                ), # endes data export hub
             )
-        )
-    ),
+        ),  # ends absolute panel settings and files
+    ),  # ends conditional panel settings and files
     
-    # --- Right Context Panel ----
-  # --- Right Context Panel ----
-  absolutePanel(
-      id = "smart_right_panel",
-      class = "panel panel-default",
-      fixed = TRUE, top = 60, right = 20, width = 350, height = "auto",
-      style = "z-index: 1050; background-color: rgba(255, 255, 255, 0.95); border-radius: 5px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);",
-      
-      div(style = "padding: 10px; background-color: #2c3e50; color: white; border-radius: 5px 5px 0 0; cursor: pointer;",
-          id = "right_panel_header",
-          onclick = "$('#right_panel_content').slideToggle();",
-          icon("cogs"), " Context Tools ", icon("caret-down", style="float:right;")
-      ),
-      
-      div(id = "right_panel_content", style = "padding: 15px; max-height: 80vh; overflow-y: auto;",
-          uiOutput("right_panel_container")
-      )
-  ),
+    # # --- OLD fixed Right Context Panel ----
+    # absolutePanel(
+    #   id = "smart_right_panel",
+    #   class = "panel panel-default",
+    #   fixed = TRUE, top = 60, right = 20, width = 350, height = "auto",
+    #   style = "z-index: 1050; background-color: rgba(255, 255, 255, 0.95); border-radius: 5px; box-shadow: 0 4px 8px rgba(0,0,0,0.2);",
+    #   
+    #   div(style = "padding: 10px; background-color: #2c3e50; color: white; border-radius: 5px 5px 0 0; cursor: pointer;",
+    #       id = "right_panel_header",
+    #       onclick = "$('#right_panel_content').slideToggle();",
+    #       icon("cogs"), " Context Tools ", icon("caret-down", style="float:right;")
+    #   ),
+    #   
+    #   div(id = "right_panel_content", style = "padding: 15px; max-height: 80vh; overflow-y: auto;",
+    #       uiOutput("right_panel_container")
+    #   )
+    # ),
     
+    # --- The Glass Sidebar Container ---
+    # The renderUI now generates the entire sidebar structure (Position, Color, Content)
+    uiOutput("right_panel_container")
     
-)  # Ends ui fillPage
+)  # Ends ui fillPage # deleted
