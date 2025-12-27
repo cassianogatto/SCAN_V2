@@ -354,6 +354,7 @@ ui <- fillPage(
         )   # absolutePanel
     ), # scan main conditional tab
     
+  
     # --- 6. SCAN Viewer ----
     conditionalPanel(
         condition = "input.top_nav == 'SCAN Viewer'",

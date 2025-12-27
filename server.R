@@ -236,7 +236,6 @@ server <- function(input, output, session) {
             setView(lng = -45, lat = -15, zoom = 4)
     })
     
-    
     # ---- UNIFIED MAP DISPLAY ---
     observe({
         req(filtered_data())
@@ -267,7 +266,6 @@ server <- function(input, output, session) {
                         label = as.character(display_shp[[col_name]])) %>%
             flyToBounds(lng1 = bb[1], lat1 = bb[2], lng2 = bb[3], lat2 = bb[4])
     })
-    
     
     # 5. Reset Button Logic (Inside the Right Panel)
     observeEvent(input$btn_map_reset, {
@@ -312,7 +310,7 @@ server <- function(input, output, session) {
             )
     })
     
-    # ---- Workshop Outputs (Skeletons) ----
+    # ---- Workshop Outputs ---- ----
     output$map_shp_names <- renderText({
         if(is.null(input$filemap)) return("Waiting for map upload...")
         paste("Columns:", paste(names(map_data()), collapse = ", "))
@@ -346,71 +344,307 @@ server <- function(input, output, session) {
         # updateTabsetPanel(session, "analysis_subtabs", selected = "Cs")
     })
     
-    
+    # ---- THE FIXED CS CALCULUS ENGINE (SF SERIAL) ----
+    observeEvent(input$calculate_Cs, {
+        req(map_data()) 
+        
+        # 1. PRE-PROCESSING
+        showNotification("Preparing Data...", type = "message")
+        
+        # Force the panel to show (in case you closed it)
+        shinyjs::runjs("$('#right_panel_container').show();") 
+        
+        # Note: This requires library(shinyjs) in your UI. 
+        # If you don't have shinyjs, just manually click the "Context Tools" header.
+        
+        # A. Get Data (Uses the Projected Master Data)
+        shapes <- map_data() 
+        
+        # B. Pre-Calculate Areas 
+        # Note: If projected, st_area returns meters^2. We strip units for math.
+        areas_df <- shapes |> 
+            mutate(area_sp = st_area(geometry)) |> 
+            st_drop_geometry() |> 
+            select(sp, area_sp)
+        
+        species_list <- unique(shapes$sp)
+        
+        # Initialize result container
+        final_cs <- NULL
+        
+        # 2. ROUTING LOGIC (The Switchboard)
+        # ------------------------------------------------
+        # >>> BRANCH 1: SF ENGINE (Standard Vector) ----
+        if (input$calc_engine == "engine_sf") {
+            
+            # ---- Sub-Branch: SERIAL Mode ----
+            if (input$calc_mode == "mode_serial") {
+                
+                # OPTION A: CHUNKED (Low RAM)
+                if (input$memory_strategy == "mem_chunk") {
+                    
+                    showNotification("Running: SF | Serial | Chunked", type = "message")
+                    
+                    chunk_size <- input$chunk_size
+                    chunks <- split(species_list, ceiling(seq_along(species_list) / chunk_size))
+                    results_list <- list()
+                    
+                    withProgress(message = 'Calculating Cs (SF Serial)...', value = 0, {
+                        for (i in seq_along(chunks)) {
+                            chunk_res <- calculate_chunk_cs_engine(chunks[[i]], shapes, areas_df)
+                            results_list[[i]] <- chunk_res
+                            incProgress(1/length(chunks), detail = paste("Batch", i, "of", length(chunks)))
+                        }
+                    })
+                    
+                    final_cs <- bind_rows(results_list)
+                } 
+                
+                # OPTION B: LOAD ALL (Fastest, if RAM allows) ----
+                else { 
+                    showNotification("Running: SF | Serial | Full Load", type = "message")
+                    
+                    withProgress(message = 'Calculating Cs (Full)...', value = 0.5, {
+                        # Just treat the whole list as one chunk
+                        final_cs <- calculate_chunk_cs_engine(species_list, shapes, areas_df)
+                    })
+                }
+                
+            } 
+            # ---- Sub-Branch: PARALLEL Mode ---
+            else { 
+                showNotification("SF Parallel Mode: Under Development 🚧", type = "warning")
+                return() # Stop here
+            }
+            
+        } 
+        
+        # >>> BRANCH 2: TERRA ENGINE ----
+        else { 
+            showNotification("Terra Engine: Under Development 🚧", type = "warning")
+            return()
+        }
+        
+        # 3. POST-PROCESSING (Save and Clean) ----
+        
+        if (!is.null(final_cs)) {
+            showNotification("Filtering & Cleaning Table...", type = "message")
+            
+            final_cs_clean <- final_cs |>
+                # A. Filter Min Cs
+                filter(Cs >= input$filter_Cs) |>
+                
+                # B. Remove Repetitions (sp1-sp2 vs sp2-sp1)
+                rowwise() |> 
+                mutate(key = paste(sort(c(sp1, sp2)), collapse = "_")) |>
+                ungroup() |>
+                distinct(key, .keep_all = TRUE) |>
+                select(-key) |>
+                arrange(desc(Cs))
+            
+            # ---- 🚀 CRITICAL FIX: SAVE TO GLOBAL REACTIVE ----
+            cs_matrix_data(final_cs_clean)
+            
+            showNotification("Calculation Finished! Check Right Panel.", type = "message", duration = 5)
+            
+            # Optional: Switch focus to the result tab if you have one
+            # updateTabsetPanel(session, "analysis_subtabs", selected = "Cs")
+        }
+        
+    }) # End ObserverEvent
     
     # ---- SCAN ENGINE (Graph Topology) ----
+    # =========================================================================
+    # --- SCAN ENGINE (V1 LOGIC LINKED TO V2 UI) ----
+    # =========================================================================
     
-    
-    # 1. Reactive Graph Object (Updates whenever Slider or Matrix changes)
-    scan_graph <- reactive({
+    SCANlist <- eventReactive(input$run_scan, {
         req(cs_matrix_data())
         
-        # Get the threshold from the Right Panel (or default to 0.5)
-        # Note: If the right panel hasn't loaded yet, default to 0.5
-        th <- if(is.null(input$scan_ct_slider)) 0.5 else input$scan_ct_slider
+        # 1. Prepare Data
+        df_cs <- cs_matrix_data() 
         
-        # Filter the matrix
-        links <- cs_matrix_data() %>% 
-            filter(Cs >= th)
+        # Initial Filter (using UI input names)
+        # Note: Your UI uses 'threshold_min', 'threshold_max', 'resolution'
+        cs_filtered <- df_cs %>% filter(Cs >= input$threshold_min)
         
-        # If no links remain, return NULL
-        if(nrow(links) == 0) return(NULL)
+        # Create Full Graph
+        g_full <- as_tbl_graph(cs_filtered, directed = FALSE)
         
-        # Build the Graph (Undirected)
-        g <- igraph::graph_from_data_frame(links, directed = FALSE)
-        return(g)
-    })
-    
-    # 2. The "RUN SCAN" Button Logic (The manual trigger)
-    observeEvent(input$run_scan, {
-        req(scan_graph())
+        # Containers
+        chorotypes_df <- data.frame()
         
-        g <- scan_graph()
+        # Define Threshold Sequence
+        thresholds <- seq(input$threshold_min, input$threshold_max, by = input$resolution)
         
-        # Calculate Components (The "Chorotypes")
-        comps <- igraph::components(g)
+        # 2. THE LOOP
+        withProgress(message = 'Running SCAN Analysis...', value = 0, {
+            
+            for(ct in thresholds) {
+                incProgress(1/length(thresholds), detail = paste("Ct:", ct))
+                
+                # A. Filter Graph
+                g_temp <- g_full %>%
+                    activate(edges) %>%
+                    filter(Cs >= ct) %>%
+                    activate(nodes) %>%
+                    mutate(degree = centrality_degree()) %>%
+                    filter(degree > 0)
+                
+                # B. Identify Components
+                comps <- g_temp %>%
+                    activate(nodes) %>%
+                    mutate(component_id = group_components()) %>%
+                    as_tibble()
+                
+                if(nrow(comps) == 0) next
+                
+                # C. Validate Chorotypes
+                comp_list <- split(comps$name, comps$component_id)
+                
+                for(cid in names(comp_list)) {
+                    spp_in_group <- comp_list[[cid]]
+                    
+                    if(length(spp_in_group) < 2) next
+                    
+                    is_valid <- TRUE
+                    
+                    # C1. Overlap (Clique)
+                    if(isTRUE(input$overlap)) {
+                        g_sub <- g_temp %>% filter(name %in% spp_in_group)
+                        if(igraph::edge_density(g_sub) < 1) is_valid <- FALSE
+                    }
+                    
+                    # C2. Diameter
+                    if(is_valid && isTRUE(input$filter_diameter)) {
+                        g_sub <- g_temp %>% filter(name %in% spp_in_group)
+                        if(igraph::diameter(g_sub) > input$max_diameter) is_valid <- FALSE
+                    }
+                    
+                    # Save if Valid
+                    if(is_valid) {
+                        chorotypes_df <- rbind(chorotypes_df, data.frame(
+                            Threshold = ct,
+                            Chorotype_ID = paste0("Ct", ct, "_G", cid),
+                            Species = I(list(spp_in_group)), 
+                            N_Species = length(spp_in_group)
+                        ))
+                    }
+                }
+            }
+        })
         
-        # Extract Results
-        n_groups <- comps$no
-        group_sizes <- table(comps$membership)
+        # 3. Package Results
+        results <- list()
         
-        # Create a Summary Dataframe
-        scan_results_df <- data.frame(
-            Species = names(comps$membership),
-            Group_ID = as.numeric(comps$membership)
+        # Flatten for display
+        if(nrow(chorotypes_df) > 0) {
+            chorotypes_long <- chorotypes_df %>% 
+                tidyr::unnest(Species) %>%
+                mutate(Species = as.character(Species))
+        } else {
+            chorotypes_long <- data.frame(Threshold=numeric(), Chorotype_ID=character(), Species=character(), N_Species=integer())
+        }
+        
+        results[['chorotypes']] <- chorotypes_long
+        
+        # Save Parameters used
+        results[['parameters']] <- data.frame(
+            Min_Ct = input$threshold_min,
+            Max_Ct = input$threshold_max,
+            Resolution = input$resolution,
+            Overlap_Check = input$overlap,
+            Diameter_Check = input$filter_diameter
         )
         
-        # Show a Notification with the results
-        msg <- paste("SCAN Complete!", n_groups, "groups found at current threshold.")
-        showNotification(msg, type = "message")
+        results[['graph']] <- g_full
+        results[['graph_nodes']] <- g_full %>% activate(nodes) %>% as_tibble()
+        results[['graph_edges']] <- g_full %>% activate(edges) %>% as_tibble()
         
-        # ---- HERE YOU WOULD SAVE RESULTS FOR DOWNLOAD ---
-        # scan_final_data(scan_results_df) # (If you define this reactive later)
+        return(results)
     })
     
-    # 3. Output for the "SCAN" Tab (Preview Table)
+    # --- OUTPUTS (Linked to SCANlist) ---
+    
+    # 1. Main Preview Table (In the Box)
     output$table_download_preview <- DT::renderDT({
-        req(scan_graph())
-        
-        # Show a simple summary of the current graph
-        g <- scan_graph()
-        data.frame(
-            Metric = c("Nodes (Species)", "Edges (Connections)", "Clusters"),
-            Value = c(igraph::vcount(g), igraph::ecount(g), igraph::components(g)$no)
-        )
-    }, options = list(dom = 't'))
+        req(SCANlist())
+        df <- SCANlist()[['chorotypes']]
+        DT::datatable(df, options = list(pageLength = 5, scrollX = TRUE))
+    })
     
-    #  CONTEXT-AWARE RIGHT PANEL LOGIC
+    # 2. Right Panel Mini Summary
+    output$mini_scan_summary <- renderTable({
+        req(SCANlist())
+        df <- SCANlist()[['chorotypes']]
+        
+        if(nrow(df) == 0) return(data.frame(Result="No groups found"))
+        
+        data.frame(
+            Metric = c("Total Groups", "Rows Generated"),
+            Value = c(length(unique(df$Chorotype_ID)), nrow(df))
+        )
+    }, colnames = FALSE, width = "100%", bordered = TRUE)
+    # # 1. Reactive Graph Object (Updates whenever Slider or Matrix changes)
+    # scan_graph <- reactive({
+    #     req(cs_matrix_data())
+    #     
+    #     # Get the threshold from the Right Panel (or default to 0.5)
+    #     # Note: If the right panel hasn't loaded yet, default to 0.5
+    #     th <- if(is.null(input$scan_ct_slider)) 0.5 else input$scan_ct_slider
+    #     
+    #     # Filter the matrix
+    #     links <- cs_matrix_data() %>% 
+    #         filter(Cs >= th)
+    #     
+    #     # If no links remain, return NULL
+    #     if(nrow(links) == 0) return(NULL)
+    #     
+    #     # Build the Graph (Undirected)
+    #     g <- igraph::graph_from_data_frame(links, directed = FALSE)
+    #     return(g)
+    # })
+    # 
+    # # 2. The "RUN SCAN" Button Logic (The manual trigger)
+    # observeEvent(input$run_scan, {
+    #     req(scan_graph())
+    #     
+    #     g <- scan_graph()
+    #     
+    #     # Calculate Components (The "Chorotypes")
+    #     comps <- igraph::components(g)
+    #     
+    #     # Extract Results
+    #     n_groups <- comps$no
+    #     group_sizes <- table(comps$membership)
+    #     
+    #     # Create a Summary Dataframe
+    #     scan_results_df <- data.frame(
+    #         Species = names(comps$membership),
+    #         Group_ID = as.numeric(comps$membership)
+    #     )
+    #     
+    #     # Show a Notification with the results
+    #     msg <- paste("SCAN Complete!", n_groups, "groups found at current threshold.")
+    #     showNotification(msg, type = "message")
+    #     
+    #     # ---- HERE YOU WOULD SAVE RESULTS FOR DOWNLOAD ---
+    #     # scan_final_data(scan_results_df) # (If you define this reactive later)
+    # })
+    
+    # # 3. Output for the "SCAN" Tab (Preview Table)
+    # output$table_download_preview <- DT::renderDT({
+    #     req(scan_graph())
+    #     
+    #     # Show a simple summary of the current graph
+    #     g <- scan_graph()
+    #     data.frame(
+    #         Metric = c("Nodes (Species)", "Edges (Connections)", "Clusters"),
+    #         Value = c(igraph::vcount(g), igraph::ecount(g), igraph::components(g)$no)
+    #     )
+    # }, options = list(dom = 't'))
+    # 
+    # #  CONTEXT-AWARE RIGHT PANEL LOGIC
     
     output$right_panel_container <- renderUI({
       
@@ -444,7 +678,8 @@ server <- function(input, output, session) {
                     actionButton("btn_map_reset", "Reset View", icon = icon("refresh"), size = "xs", 
                                  style = "width: 100%; margin-top: 5px;")
                 )
-            } else if (sub_lvl == "Cs") {
+            } 
+            else if (sub_lvl == "Cs") {
                 
                 # Check if matrix exists
                 has_data <- !is.null(cs_matrix_data())
@@ -467,15 +702,52 @@ server <- function(input, output, session) {
             }
             
         # CASE B: SCAN Viewer
-        } else if (!is.null(top_lvl) && top_lvl == "SCAN Viewer") {
-            panel_title <- "Viewer Controls"
-            panel_content <- tagList(
-                 h5("Visual Layers"),
-                 checkboxInput("show_network", "Show Network", TRUE),
-                 checkboxInput("show_map", "Show Map Overlay", TRUE),
-                 hr(),
-                 selectizeInput("viewer_spp_search", "Find Species:", choices = NULL)
-            )
+            # --- A.3 SCAN TAB (Right Panel: Status & Results Only) ---
+        } else if (sub_lvl == "SCAN") {
+            
+            # Check Dependencies
+            has_matrix <- !is.null(cs_matrix_data())
+            
+            # Check if Results exist (Safely)
+            has_results <- FALSE
+            try({
+                if(exists("SCANlist") && !is.null(SCANlist())) has_results <- TRUE
+            }, silent=TRUE)
+            
+            panel_title <- "SCAN Status"
+            
+            if (!has_matrix) {
+                # 🔴 STOP: No Matrix
+                panel_content <- tagList(
+                    div(style="text-align: center; padding: 20px; color: #e74c3c;",
+                        icon("exclamation-triangle", "fa-3x"),
+                        h4("Matrix Missing"),
+                        p("Please calculate the Cs Index first."),
+                        actionButton("goto_cs", "Go to Cs Tab", icon=icon("arrow-left"), 
+                                     onclick = "$('a[data-value=\"Cs\"]').tab('show');")
+                    )
+                )
+            } else {
+                # 🟡 READY (Controls are in the Main Window)
+                panel_content <- tagList(
+                    p(class="text-muted", icon("info-circle"), " Configure parameters in the main window."),
+                    
+                    hr(),
+                    
+                    # 🟢 SUCCESS: Mini Results Table
+                    if(has_results) {
+                        tagList(
+                            h4(style="color: #2c3e50;", icon("list-ol"), " Results Summary"),
+                            tableOutput("mini_scan_summary") 
+                        )
+                    } else {
+                        div(style="text-align: center; padding: 10px; color: #7f8c8d;",
+                            p("Waiting for Analysis..."),
+                            p(style="font-size: 0.9em;", "(Click 'RUN SCAN ANALYSIS' on the left)")
+                        )
+                    }
+                )
+            }
         }
         
         # ---- RENDER THE SIDEBAR (Only if content exists) ---
@@ -529,118 +801,7 @@ server <- function(input, output, session) {
     }, width = "100%", hover = TRUE, bordered = TRUE)
     
     
-    # ---- THE FIXED CS CALCULUS ENGINE (SF SERIAL) ----
     
-    
-    observeEvent(input$calculate_Cs, {
-        req(map_data()) 
-        
-        # 1. PRE-PROCESSING
-        showNotification("Preparing Data...", type = "message")
-        
-        # Force the panel to show (in case you closed it)
-        shinyjs::runjs("$('#right_panel_container').show();") 
-        
-        # Note: This requires library(shinyjs) in your UI. 
-        # If you don't have shinyjs, just manually click the "Context Tools" header.
-        
-        # A. Get Data (Uses the Projected Master Data)
-        shapes <- map_data() 
-        
-        # B. Pre-Calculate Areas 
-        # Note: If projected, st_area returns meters^2. We strip units for math.
-        areas_df <- shapes |> 
-            mutate(area_sp = st_area(geometry)) |> 
-            st_drop_geometry() |> 
-            select(sp, area_sp)
-        
-        species_list <- unique(shapes$sp)
-        
-        # Initialize result container
-        final_cs <- NULL
-        
-        # 2. ROUTING LOGIC (The Switchboard)
-        # ------------------------------------------------
-        
-        # >>> BRANCH 1: SF ENGINE (Standard Vector) <<< ----
-        if (input$calc_engine == "engine_sf") {
-            
-            # ---- Sub-Branch: SERIAL Mode ----
-            if (input$calc_mode == "mode_serial") {
-                
-                # OPTION A: CHUNKED (Low RAM)
-                if (input$memory_strategy == "mem_chunk") {
-                    
-                    showNotification("Running: SF | Serial | Chunked", type = "message")
-                    
-                    chunk_size <- input$chunk_size
-                    chunks <- split(species_list, ceiling(seq_along(species_list) / chunk_size))
-                    results_list <- list()
-                    
-                    withProgress(message = 'Calculating Cs (SF Serial)...', value = 0, {
-                        for (i in seq_along(chunks)) {
-                            chunk_res <- calculate_chunk_cs_engine(chunks[[i]], shapes, areas_df)
-                            results_list[[i]] <- chunk_res
-                            incProgress(1/length(chunks), detail = paste("Batch", i, "of", length(chunks)))
-                        }
-                    })
-                    
-                    final_cs <- bind_rows(results_list)
-                } 
-                
-                # OPTION B: LOAD ALL (Fastest, if RAM allows) ----
-                else { 
-                    showNotification("Running: SF | Serial | Full Load", type = "message")
-                    
-                    withProgress(message = 'Calculating Cs (Full)...', value = 0.5, {
-                        # Just treat the whole list as one chunk
-                        final_cs <- calculate_chunk_cs_engine(species_list, shapes, areas_df)
-                    })
-                }
-                
-            } 
-            # ---- Sub-Branch: PARALLEL Mode ---
-            else { 
-                showNotification("SF Parallel Mode: Under Development 🚧", type = "warning")
-                return() # Stop here
-            }
-            
-        } 
-        
-        # >>> BRANCH 2: TERRA ENGINE <<< ----
-        else { 
-            showNotification("Terra Engine: Under Development 🚧", type = "warning")
-            return()
-        }
-        
-        # 3. POST-PROCESSING (Save and Clean) ----
-        
-        if (!is.null(final_cs)) {
-            showNotification("Filtering & Cleaning Table...", type = "message")
-            
-            final_cs_clean <- final_cs |>
-                # A. Filter Min Cs
-                filter(Cs >= input$filter_Cs) |>
-                
-                # B. Remove Repetitions (sp1-sp2 vs sp2-sp1)
-                rowwise() |> 
-                mutate(key = paste(sort(c(sp1, sp2)), collapse = "_")) |>
-                ungroup() |>
-                distinct(key, .keep_all = TRUE) |>
-                select(-key) |>
-                arrange(desc(Cs))
-            
-            # ---- 🚀 CRITICAL FIX: SAVE TO GLOBAL REACTIVE ---
-            cs_matrix_data(final_cs_clean)
-            
-            showNotification("Calculation Finished! Check Right Panel.", type = "message", duration = 5)
-            
-            # Optional: Switch focus to the result tab if you have one
-            # updateTabsetPanel(session, "analysis_subtabs", selected = "Cs")
-        }
-        
-    }) # End ObserverEvent
-
     
     # --- Floating Box Content ----
     
