@@ -412,7 +412,6 @@ server <- function(input, output, session) {
     
     #  CONTEXT-AWARE RIGHT PANEL LOGIC
     
-    
     output$right_panel_container <- renderUI({
       
         # 1. Get Navigation State
@@ -420,7 +419,7 @@ server <- function(input, output, session) {
         sub_lvl <- input$analysis_subtabs
         
         # 2. Get User Transparency (Default to 0.95 if NULL)
-        alpha <- if(is.null(input$panel_opacity)) 0.95 else input$panel_opacity
+        alpha <- if(is.null(input$panel_opacity)) 0.85 else input$panel_opacity
         
         # Initialize content as NULL (Hidden by default)
         panel_content <- NULL
