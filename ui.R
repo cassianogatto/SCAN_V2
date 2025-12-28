@@ -1,6 +1,9 @@
-######################################################
-#           THIS IS SCAN V2                          #
-######################################################
+
+
+
+# ///O>\\\ \\\O>//// ///O>\\\ \\\O>//// 
+#       ...  THIS IS SCAN V2 ...                          #
+# ///O>\\\ \\\O>//// ///O>\\\ \\\O>//// 
 
 library(shiny)
 library(leaflet)
@@ -229,28 +232,49 @@ ui <- fillPage(
                                             "Note: Cutting the tail of lower values optimizes computation. However, low Cs values can still be biogeographically informative depending on the spatial structure."
                                         ),
                                         
-                                        # 1.2 Formulas
-                                        checkboxInput("use_alternative_index", "Use Custom Formula?", value = FALSE),
-                                        conditionalPanel(
-                                            condition = "input.use_alternative_index == true",
-                                            wellPanel(
-                                                style = "background: #fcfcfc; padding: 10px;",
-                                                tags$small("Available variables: area_overlap, area_sp1, area_sp2"),
-                                                textInput("cs_similarity_index", "Formula:", value = '(area_overlap / area_sp1) * (area_overlap / area_sp2)'),
-                                                tags$small(em("Example Jaccard: area_overlap / (area_sp1 + area_sp2 - area_overlap)"))
+                                        # Cs BUTTON 
+                                        actionButton("calculate_Cs", "RUN CS ANALYSIS", 
+                                                     class = "btn-success", 
+                                                     style = "width: 100%; font-weight: bold; font-size: 1.2em; margin-top: 10px;", 
+                                                     icon = icon("play-circle")
+                                        ),
+                                        
+                                        tags$b("or upload a Cs matrix below..."),
+                                        
+                                        # --- 3 Update Cs Index table ---
+                                        
+                                        box(title = "2. Upload Cs Index Table", status = "info", width = NULL, solidHeader = TRUE, 
+                                            tags$small("Note: Uploading a file overrides the calculation settings above."),
+                                            fileInput("upload_cs_matrix", "Upload pre-calculated Cs Matrix (.csv)",
+                                                      accept = c("text/csv", "text/comma-separated-values", ".csv"),
+                                                      placeholder = "No file selected"),
+                                            
+                                        ),
+                                        
+                                        # Formulas
+                                        box(title = "3. Spatial Congruence Formula", status = "info", width = NULL, solidHeader = TRUE, 
+                                            checkboxInput("use_alternative_index", "Use Custom Formula?", value = FALSE),
+                                            conditionalPanel(
+                                                condition = "input.use_alternative_index == true",
+                                                wellPanel(
+                                                    style = "background: #fcfcfc; padding: 10px;",
+                                                    tags$small("Available variables: area_overlap, area_sp1, area_sp2"),
+                                                    textInput("cs_similarity_index", "Formula:", value = '(area_overlap / area_sp1) * (area_overlap / area_sp2)'),
+                                                    tags$small(em("Example Jaccard: area_overlap / (area_sp1 + area_sp2 - area_overlap)"))
+                                                )
                                             )
                                         ),
                                         
-                                        box(title = "2. Engine & Performance", status = "warning", width = NULL, solidHeader = TRUE,
+                                        box(title = "3. Engine & Performance", status = "warning", width = NULL, solidHeader = TRUE,
                                             
-                                            # 2.1 Processing Engine (Library)
+                                            # Processing Engine (Library)
                                             tags$label("1. Calculation Engine:"),
                                             radioButtons("calc_engine", NULL,
                                                          choices = c("sf (Standard Vector)" = "engine_sf", 
                                                                      "terra (High Performance)" = "engine_terra"), 
                                                          selected = "engine_sf", inline = TRUE),
                                             
-                                            # 2.2 Processing Mode (Serial vs Parallel)
+                                            # Processing Mode (Serial vs Parallel)
                                             tags$label("2. Processing Core Mode:"),
                                             radioButtons("calc_mode", NULL, 
                                                          choices = c("Serial (Single Core)" = "mode_serial", 
@@ -281,20 +305,7 @@ ui <- fillPage(
                                             ),
                                      ),   
                                         
-                                        # --- 3 Update Cs Index table ---
                                         
-                                        box(title = "3. Update Cs Index Table", status = "info", width = NULL, solidHeader = TRUE, 
-                                            fileInput("upload_cs_matrix", "Upload pre-calculated Cs Matrix (.csv)",
-                                                      accept = c("text/csv", "text/comma-separated-values", ".csv"),
-                                                      placeholder = "No file selected"),
-                                            tags$small("Note: Uploading a file overrides the calculation settings above.")
-                                        ),
-                                        
-                                        # Cs BUTTON 
-                                        actionButton("calculate_Cs", "RUN CS ANALYSIS", 
-                                                     class = "btn-success", 
-                                                     style = "width: 100%; font-weight: bold; font-size: 1.2em; margin-top: 10px;", 
-                                                     icon = icon("play-circle"))
                                     )
                              )
                     ),
@@ -333,11 +344,8 @@ ui <- fillPage(
                             
                             # Results Box
                             box(width = NULL, title = "2. Results & Downloads", status = "danger",
-                                fluidRow(
-                                    column(8, uiOutput("names_scan_list")),
-                                    column(4, downloadButton("downloadData", "Download Selected", class = "btn-default align-btn"))
-                                ),
-                                tags$hr(),
+                                tags$h4(
+                                    tableOutput("scan_summary_text")),
                                 tags$h4("Preview Data:"),
                                 DT::DTOutput('table_download_preview'),
                                 tags$br(),
@@ -389,11 +397,9 @@ ui <- fillPage(
                   ) # absolute panel scan
     ), # conditional panel scan
     
-    # --- 7. Settings & Files ----
-  # =========================================================================
   # --- PANEL: SETTINGS & FILES (Downloads) ----
-  # =========================================================================
-  conditionalPanel(
+  
+   conditionalPanel(
     condition = "input.top_nav == 'Settings&Files'",
     absolutePanel(
       top = 70, left = "15%", right = "15%",
@@ -439,76 +445,74 @@ ui <- fillPage(
     )
   ),
   
-  # =========================================================================
-  # --- FLOATING BOX: CS PREVIEW (Appears only on Cs Tab) ----
-  # =========================================================================
-  conditionalPanel(
-    # Condition: User is on 'SCAN Analysis' -> 'Cs' tab AND data is available
-    condition = "input.top_nav == 'SCAN Analysis' && input.analysis_subtabs == 'Cs' && output.cs_data_available == true",
-    
-    absolutePanel(
-      id = "cs_floating_box",
-      class = "panel panel-info",
-      fixed = TRUE, draggable = TRUE,
-      top = 130, right = 20, width = 300, height = "auto",
-      style = "z-index: 2000;  box-shadow: 0 4px 8px rgba(0,0,0,0.3);",
-      
-      #div(class = "panel-heading", tags$h4("📊 Cs Results Preview", style="margin: 0; font-size: 16px;")),
-      div(class = "panel-body", style = "max-height: 400px; overflow-y: auto; padding: 10px;",
-          p(class = "text-muted", "Top strong connections:"),
-          tableOutput("mini_nodes_table"), # Defined in server
-          hr(),
-          downloadButton("dl_cs_float", "Download Full Matrix", class = "btn-xs btn-primary btn-block")
-      )
-    )
-  ),
-  
-  
-  # =========================================================================
-  # --- FLOATING BOX: SCAN RESULTS (Appears only on SCAN Tab) ----
-  # =========================================================================
-  conditionalPanel(
-    # Condition: User is on 'SCAN Analysis' -> 'SCAN' tab AND results exist
-    condition = "input.top_nav == 'SCAN Analysis' && input.analysis_subtabs == 'SCAN' && output.scan_results_ready == true",
-    
-    absolutePanel(
-      id = "scan_floating_box",
-      class = "panel panel-success", # Green style for Success/Results
-      fixed = TRUE, draggable = TRUE,
-      top = 130, right = 20, width = 320, height = "auto",
-      style = "z-index: 2000;  box-shadow: 0 4px 8px rgba(0,0,0,0.3);",
-      
-      # --- Header ---
-      div(class = "panel-heading", 
-          tags$h4("🧬 SCAN Chorotypes", style="margin: 0; font-size: 16px;")
-      ),
-      
-      # --- Body: List of Groups ---
-      div(class = "panel-body", style = "padding: 10px;",
-          
-          # 1. Summary Text
-          htmlOutput("scan_summary_text"),
-          hr(style="margin: 5px 0;"),
-          
-          # 2. Scrollable List of Chorotypes
-          p(class = "text-muted", style="font-size: 12px;", "Species & Group Assignment:"),
-          div(style = "max-height: 300px; overflow-y: auto; border: 1px solid #ddd; background: white;",
-              tableOutput("scan_chorotype_list")
-          ),
-          
-          hr(),
-          
-          # 3. Quick Downloads
-          div(class = "btn-group-vertical", style="width: 100%;",
-              downloadButton("dl_chorotypes_float", "📥 Download List (.csv)", class = "btn-xs btn-success"),
-              downloadButton("dl_edges_float", "📥 Download Graph Edges", class = "btn-xs btn-default")
-          )
-      )
-    )
-  ),
-    
+
     # --- The Glass Sidebar Container ----
     # The renderUI now generates the entire sidebar structure (Position, Color, Content)
     uiOutput("right_panel_container")
     
 )  # Ends ui fillPage # deleted
+
+# THRASH
+# --- FLOATING BOX: CS PREVIEW (Appears only on Cs Tab) ---
+# conditionalPanel(
+#   # Condition: User is on 'SCAN Analysis' -> 'Cs' tab AND data is available
+#   condition = "input.top_nav == 'SCAN Analysis' && input.analysis_subtabs == 'Cs' && output.cs_data_available == true",
+#   
+#   absolutePanel(
+#     id = "cs_floating_box",
+#     class = "panel panel-info",
+#     fixed = TRUE, draggable = TRUE,
+#     top = 130, right = 20, width = 300, height = "auto",
+#     style = "z-index: 2000;  box-shadow: 0 4px 8px rgba(0,0,0,0.3);",
+#     
+#     #div(class = "panel-heading", tags$h4("📊 Cs Results Preview", style="margin: 0; font-size: 16px;")),
+#     div(class = "panel-body", style = "max-height: 400px; overflow-y: auto; padding: 10px;",
+#         p(class = "text-muted", "Top strong connections:"),
+#         tableOutput("mini_nodes_table"), # Defined in server
+#         hr(),
+#         downloadButton("dl_cs_float", "Download Full Matrix", class = "btn-xs btn-primary btn-block")
+#     )
+#   )
+# ),
+
+
+# --- FLOATING BOX: SCAN RESULTS (Appears only on SCAN Tab) ---
+# conditionalPanel(
+#   # Condition: User is on 'SCAN Analysis' -> 'SCAN' tab AND results exist
+#   condition = "input.top_nav == 'SCAN Analysis' && input.analysis_subtabs == 'SCAN' && output.scan_results_ready == true",
+#   
+#   absolutePanel(
+#     id = "scan_floating_box",
+#     class = "panel panel-success", # Green style for Success/Results
+#     fixed = TRUE, draggable = TRUE,
+#     top = 130, right = 20, width = 320, height = "auto",
+#     style = "z-index: 2000;  box-shadow: 0 4px 8px rgba(0,0,0,0.3);",
+#     
+#     # --- Header ---
+#     div(class = "panel-heading", 
+#         tags$h4("🧬 SCAN Chorotypes", style="margin: 0; font-size: 16px;")
+#     ),
+#     
+#     # --- Body: List of Groups ---
+#     div(class = "panel-body", style = "padding: 10px;",
+#         
+#         # 1. Summary Text
+#         htmlOutput("scan_summary_text"),
+#         hr(style="margin: 5px 0;"),
+#         
+#         # 2. Scrollable List of Chorotypes
+#         p(class = "text-muted", style="font-size: 12px;", "Species & Group Assignment:"),
+#         div(style = "max-height: 300px; overflow-y: auto; border: 1px solid #ddd; background: white;",
+#             tableOutput("scan_chorotype_list")
+#         ),
+#         
+#         hr(),
+#         
+#         # 3. Quick Downloads
+#         div(class = "btn-group-vertical", style="width: 100%;",
+#             downloadButton("dl_chorotypes_float", "📥 Download List (.csv)", class = "btn-xs btn-success"),
+#             downloadButton("dl_edges_float", "📥 Download Graph Edges", class = "btn-xs btn-default")
+#         )
+#     )
+#   )
+# ),
