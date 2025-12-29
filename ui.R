@@ -265,7 +265,7 @@ ui <- fillPage(
                                             )
                                         ),
                                         
-                                        box(title = "3. Engine & Performance", status = "warning", width = NULL, solidHeader = TRUE,
+                                        box(title = "4. Engine & Performance", status = "warning", width = NULL, solidHeader = TRUE,
                                             
                                             # Processing Engine (Library)
                                             tags$label("1. Calculation Engine:"),
@@ -325,20 +325,18 @@ ui <- fillPage(
                             # BOX 3.1: Configuração SCAN
                             box(width = NULL, title = "1. Algorithm Configuration", status = "danger", solidHeader = TRUE,
                                 fluidRow(
-                                    column(6, numericInput("resolution", "Resolution (Step):", value = 0.1, step = 0.01)),
-                                    column(6, numericInput("threshold_min", "Min Threshold:", value = 0.2, step = 0.05)),
-                                    column(6, numericInput("threshold_max", "Max Threshold:", value = 0.9, step = 0.05)),
-                                    column(6, 
+                                    column(4, numericInput("resolution", "Resolution (Step):", value = 0.1, step = 0.01)),
+                                    column(4, numericInput("threshold_min", "Min Threshold:", value = 0.2, step = 0.05)),
+                                    column(4, numericInput("threshold_max", "Max Threshold:", value = 0.9, step = 0.05)),
+                                    column(4, 
                                            checkboxInput("filter_diameter", "Limit Diameter?", value = TRUE),
                                            conditionalPanel("input.filter_diameter == true",
                                                             numericInput("max_diameter", "Max Diameter:", value = 15)
                                            )
-                                    )
+                                    ),
+                                    column(4, checkboxInput("overlap", "Require Full Overlap (Clique)?", value = TRUE))
                                 ),
-                                fluidRow(
-                                    column(3, checkboxInput("overlap", "Require Full Overlap (Clique)?", value = TRUE))
-                                ),
-                                tags$hr(),
+                                
                                 actionButton("run_scan", "RUN SCAN ANALYSIS", class = "btn-danger", icon = icon("rocket"), width = "200px")
                             ),
                             
@@ -367,33 +365,27 @@ ui <- fillPage(
     conditionalPanel(
         condition = "input.top_nav == 'SCAN Viewer'",
         absolutePanel(top = 70, left = "15%", right = "15%",
-                      div(class = "scroll-panel", h2("SCAN Viewer"),
-                          
-                          fluidRow(
-                                  column(5, 
-                                         box(width = NULL, title = "Static Map", status = "primary", solidHeader = TRUE,
-                                             plotOutput("ggplot_map", height = "500px")
-                                         )
-                                  ),
-                                  column(5,
-                                         box(width = NULL, title = "Network Topology", status = "primary", solidHeader = TRUE,
-                                             plotOutput("graph_plot", height = "500px")
-                                         )
-                                  ), 
-                                  
-                                  column(1,),
-                                  
-                          ),
-                          
-                          fluidRow(
-                              column(12,
-                                     box(width = NULL, title = "Species List (Selected Groups)", status = "success", solidHeader = TRUE,
-                                         DT::DTOutput("view_species_table")
-                                     )
-                              )
-                          )
-                          
-                      ) # div
+          div(class = "scroll-panel", h2("SCAN Viewer"),
+              fluidPage(
+                  column(5, 
+                         box(width = NULL, title = "Static Map", status = "primary", solidHeader = TRUE,
+                             plotOutput("ggplot_map", height = "500px")
+                         )
+                  ),
+                  column(5,
+                         box(width = NULL, title = "Network Topology", status = "primary", solidHeader = TRUE,
+                             plotOutput("graph_plot", height = "500px")
+                         )
+                  ), 
+                  
+                  column(8,
+                         box(width = NULL, title = "Species List (Selected Groups)", status = "success", solidHeader = TRUE,
+                             DT::DTOutput("view_species_table")
+                         ),
+                  ),
+              ),
+              
+          ), # div
                   ) # absolute panel scan
     ), # conditional panel scan
     

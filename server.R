@@ -154,7 +154,7 @@ server <- function(input, output, session) {
         showNotification("Settings Applied & Species List Updated!", type = "message")
     })
     
-    # C. Filtered Data (The View Layer)
+    # C. Filtered Data () - Selected Species
     filtered_data <- reactive({
         req(map_data())
         col_name <- if(isTRUE(input$ID_column)) input$colum_sp_map else "sp"
@@ -167,7 +167,7 @@ server <- function(input, output, session) {
     })
     
     
-    # --- 3. MAP DISPLAY (Cleaned - Single Observer) ---
+    # --- 3. MAP DISPLAY (Cleaned - Single Observer) ----
 
     # A. Initialize Leaflet
     output$map <- renderLeaflet({
@@ -176,7 +176,7 @@ server <- function(input, output, session) {
             setView(lng = -45, lat = -15, zoom = 4)
     })
     
-    # B. The ONE AND ONLY Map Updater
+    # B. Map Updater
     observe({
         req(filtered_data())
         
@@ -215,7 +215,7 @@ server <- function(input, output, session) {
     })
     
     
-    # --- 4. CS MATRIX LOGIC ---
+    # --- 4. CS MATRIX LOGIC ----
     
     # A. Upload Handler
     observeEvent(input$upload_cs_matrix, {
@@ -383,7 +383,7 @@ server <- function(input, output, session) {
         DT::datatable(df, options = list(pageLength = 35, scrollX = TRUE))
     })
     
-    # B. SCAN Summary Text (Floating Box)
+    # B. SCAN Summary Text
     output$scan_summary_text <- renderUI({
         req(scan_graph())
         df <- scan_graph()[['chorotypes']]
@@ -391,7 +391,7 @@ server <- function(input, output, session) {
         HTML(paste0("<b>", n_groups, " Chorotypes</b> found"))
     })
     
-    # C. SCAN List (Now used in Right Sidebar)
+    # C. SCAN Results sidebar
     output$scan_chorotype_list <- renderTable({
         req(scan_graph())
         df <- scan_graph()[['chorotypes']]
@@ -412,7 +412,7 @@ server <- function(input, output, session) {
     output$scan_results_ready <- reactive({ !is.null(scan_graph()) })
     outputOptions(output, "scan_results_ready", suspendWhenHidden = FALSE)
     
-     # --- 7. RIGHT PANEL (CONTEXT AWARE - WITH DOWNLOADS) ----
+    # --- 7. RIGHT PANEL (CONTEXT AWARE - WITH DOWNLOADS) ----
     
     output$right_panel_container <- renderUI({
         top_lvl <- input$top_nav
@@ -493,8 +493,66 @@ server <- function(input, output, session) {
                         }
                     )
                 }
+                # --- CASE D: SCAN VIEWER (Visual Exploration) ---
+            } else if (!is.null(top_lvl) && top_lvl == "SCAN Viewer") {
+                
+                # 1. Check if we have results to view
+                has_results <- FALSE
+                try({ if(exists("scan_graph") && !is.null(scan_graph())) has_results <- TRUE }, silent=TRUE)
+                
+                panel_title <- "Viewer Controls"
+                
+                if(!has_results) {
+                    # 🔴 STOP: No Analysis
+                    panel_content <- tagList(
+                        div(style="text-align: center; color: #e74c3c; padding: 20px;",
+                            icon("ban", "fa-3x"),
+                            h4("No Analysis Found"),
+                            p("Please run the SCAN Analysis first.")
+                        )
+                    )
+                } else {
+                    # 🟢 READY: The Controls
+                    
+                    # <<<<<<<<<<< HERE WE SHOULD TAKE THE PARAMETERS FROM CS TABLE?
+                    
+                    # Get Min/Max/Step from the parameters used in calculation
+                    params <- scan_graph()[['parameters']]
+                    
+                    panel_content <- tagList(
+                        
+                        # 1. The Threshold Slider (Hierarchy Level 1)
+                        div(style="background: #ecf0f1; padding: 10px; border-radius: 5px;",
+                            h5(icon("sliders-h"), " 1. Select Threshold (Ct)"),
+                            sliderInput("viewer_threshold", NULL, 
+                                        min = params$Min_Ct, 
+                                        max = params$Max_Ct, 
+                                        value = params$Min_Ct, 
+                                        step = params$Resolution)
+                        ),
+                        
+                        # 2. The Group Selector (Hierarchy Level 2)
+                        # This is dynamic: it changes based on the slider above
+                        h5(icon("layer-group"), " 2. Select Chorotypes"),
+                        p(class="text-muted", style="font-size: 0.9em;", "Chorotypes at this Ct:"),
+                        
+                        # The UI Output from Server Part B
+                        uiOutput("viewer_group_selector"),
+                        
+                        # hr(),
+                        
+                        # 3. Visual Toggles (Optional polish)
+                        checkboxInput("viewer_show_labels", "Show Species Labels", value = TRUE),
+                        sliderInput("viewer_alpha", "Map Opacity", 0, 1, 0.5, 0.1)
+                    )
+                }
             }
         }
+        
+        
+        
+        
+        
         
         # Render Sidebar HTML
         if (!is.null(panel_content)) {
@@ -560,6 +618,284 @@ server <- function(input, output, session) {
             write.csv(df, file, row.names = FALSE) 
         }
     )
+    
+    ###################### in obras  >>>>
+    
+    # --- VIEWER ----
+    
+    # A. UI DO SELETOR DE CHORÓTIPOS (NO PAINEL FLUTUANTE)
+    output$chorotype_selector_global <- renderUI({
+        req(scan_graph())
+        df <- scan_graph()[['chorotypes']]
+        
+        # Filtra grupos disponíveis baseado no slider GLOBAL
+        disp_ct <- input$threshold_global
+        available_groups <- df |> 
+            filter(abs(Threshold - disp_ct) < 0.001) |> 
+            pull(Chorotype_ID) |> 
+            unique()
+        
+        if(length(available_groups) == 0) return(helpText("No chorotypes at this threshold."))
+        
+        # Formata nomes para ficar bonito (Ct0.5_G1 -> Group 1)
+        group_nums <- gsub(".*_G", "", available_groups)
+        names(available_groups) <- paste("Group", group_nums)
+        
+        checkboxGroupInput("selected_chorotypes_global", NULL, # Label vazio pois já tem título no UI
+                           choices = available_groups,
+                           selected = available_groups[1:min(3, length(available_groups))], 
+                           inline = TRUE)
+    })
+    
+    # B. REACTIVE UNIFICADO (DADOS FILTRADOS)
+    
+    # V1 Este objeto alimenta o Mapa, o GGplot, o Grafo e a Tabela simultaneamente
+    g_sub <- reactive({
+        req(scan_graph(), input$threshold_global, input$selected_chorotypes_global)
+        
+        # 1. Identificar espécies dos grupos selecionados
+        df <- scan_graph()[['chorotypes']]
+        selected_spp <- df |> 
+            filter(Chorotype_ID %in% input$selected_chorotypes_global) |>
+            pull(Species) |>
+            unique()
+        
+        req(length(selected_spp) > 0)
+        
+        # 2. Filtrar o grafo completo
+        g_full <- scan_graph()[['graph']]
+        
+        g_view <- g_full |>
+            activate(edges) |>
+            filter(Cs >= input$threshold_global) |> # Usa Threshold Global
+            activate(nodes) |>
+            filter(name %in% selected_spp) |>        # Usa Espécies selecionadas
+            mutate(comps = group_components())        # Recalcula componentes locais para cor
+        
+        return(g_view)
+    })
+    
+    
+    # GGPLOT MAP - ggplot_map()
+    output$ggplot_map <- renderPlot({
+        req(map_data(), chorotype_pal())
+        
+        ggplot(g_map()) +
+            geom_sf(aes(fill = as.factor(comps)), color = "black", size = 0.2, alpha = input$alpha_global) +
+            scale_fill_manual(values = chorotype_pal(), name = "Group") +
+            theme_minimal() +
+            labs(title = paste("Spatial Distribution (Ct =", input$threshold_global, ")"))
+    })
+    
+    # GRAPH PLOT - graph_plot()
+    output$graph_plot <- renderPlot({
+        req(g_sub(), chorotype_pal())
+        
+        lay <- create_layout(g_sub(), layout = input$layout_graph)
+        
+        ggraph(lay) +
+            geom_edge_link(aes(alpha = Cs), width = 1, show.legend = FALSE) +
+            geom_node_point(aes(fill = as.factor(comps)), size = 5, shape = 21, color = "black") +
+            scale_fill_manual(values = chorotype_pal()) +
+            geom_node_text(aes(label = name), repel = TRUE, size = 3) +
+            theme_graph() +
+            theme(legend.position = "none")
+    })
+    
+    # PALETA DE CORES UNIFICADA
+    chorotype_pal <- reactive({
+        req(g_sub())
+        comps_presentes <- g_sub() |> activate(nodes) |> as_tibble() |> pull(comps) |> unique() |> sort()
+        
+        n_cores <- length(comps_presentes)
+        if(n_cores < 3) n_cores <- 3
+        
+        pal_name <- input$palette_global
+        cores <- suppressWarnings(RColorBrewer::brewer.pal(n = n_cores, name = pal_name))
+        
+        if(length(comps_presentes) > length(cores)) {
+            cores <- colorRampPalette(cores)(length(comps_presentes))
+        } else {
+            cores <- cores[1:length(comps_presentes)]
+        }
+        
+        names(cores) <- comps_presentes
+        return(cores)
+    })
+    
+    # 4. TABELA DE ESPÉCIES (ABA 2)
+    output$view_species_table <- renderDT({
+        req(scan_graph(), input$threshold_global, input$selected_chorotypes_global)
+        
+        # Pegamos o dataframe original dos resultados (muito mais seguro)
+        df_completo <- scan_graph()[['chorotypes']]
+        
+        # Filtramos usando os inputs do Painel Global
+        df_filtrado <- df_completo |> 
+            filter(abs(Threshold - input$threshold_global) < 0.001) |> # Filtra Ct
+            filter(Chorotype_ID %in% input$selected_chorotypes_global) |> # Filtra Grupos
+            select(Ct = Threshold, Chorotype = Chorotype_ID, Species, N_Species) |>
+            arrange(Chorotype, Species)
+        
+        datatable(df_filtrado, 
+                  options = list(pageLength = 10, scrollX = TRUE), 
+                  rownames = FALSE)
+    })
+    
+    
+    # --- 10. SCAN VIEWER LOGIC (The Visual Engine) ----
+   
+    # A. Dynamic Checkbox Generator (Feeds Right Panel)
+    output$viewer_group_selector <- renderUI({
+        req(scan_graph())
+        
+        # 1. Get Data
+        df <- scan_graph()[['chorotypes']]
+        current_ct <- input$viewer_threshold
+        
+        # 2. Filter groups that exist at this specific threshold
+        # We use a small epsilon for float comparison safety
+        available_groups <- df %>% 
+            dplyr::filter(abs(Threshold - current_ct) < 0.001) %>%
+            dplyr::pull(Chorotype_ID) %>%
+            unique()
+        
+        if(length(available_groups) == 0) {
+            return(helpText("No chorotypes formed exactly at this Threshold."))
+        }
+        
+        # 3. Beautify Names (Ct0.5_G1 -> Group 1)
+        display_names <- gsub(".*_G", "Chor. ", available_groups)
+        names(available_groups) <- display_names
+        
+        # 4. Create Checkboxes
+        checkboxGroupInput("viewer_selected_groups", NULL,
+                           choices = available_groups,
+                           # Select the first one by default so the screen isn't empty
+                           selected = available_groups[1], 
+                           inline = TRUE)
+    })
+    
+    # B. Helper: The Sub-Graph (Filtered Network)
+    viewer_sub_graph <- reactive({
+        req(scan_graph(), input$viewer_threshold, input$viewer_selected_groups)
+        
+        # 1. Identify species in the selected groups
+        df <- scan_graph()[['chorotypes']]
+        
+        selected_spp <- df %>% 
+            filter(Chorotype_ID %in% input$viewer_selected_groups) %>% 
+            pull(Species) %>% 
+            unique()
+        
+        req(length(selected_spp) > 0)
+        
+        # 2. Filter the Master Graph
+        g_full <- scan_graph()[['graph']]
+        
+        g_view <- g_full %>%
+            activate(edges) %>%
+            filter(Cs >= input$viewer_threshold) %>% # Filter weak links
+            activate(nodes) %>%
+            filter(name %in% selected_spp) %>%       # Keep only selected species
+            mutate(comps = group_components())       # Recalculate IDs for coloring
+        
+        return(g_view)
+    })
+    
+    # C. Helper: The Map Data (Joined with Shapes)
+    viewer_map_data <- reactive({
+        req(viewer_sub_graph(), map_data())
+        
+        # Get species names from the filtered graph
+        spp_names <- viewer_sub_graph() %>% activate(nodes) %>% pull(name)
+        
+        # Filter the Master Shapefile
+        # Note: We must join with the graph data to know which "Group" each shape belongs to
+        node_data <- viewer_sub_graph() %>% activate(nodes) %>% as_tibble() %>% select(name, comps)
+        
+        map_final <- map_data() %>% 
+            filter(sp %in% spp_names) %>%
+            left_join(node_data, by = c("sp" = "name"))
+        
+        return(map_final)
+    })
+    
+    # D. Helper: Consistent Palette
+    viewer_palette <- reactive({
+        req(viewer_sub_graph())
+        
+        # Find unique groups in the current view
+        grps <- viewer_sub_graph() %>% activate(nodes) %>% as_tibble() %>% pull(comps) %>% unique() %>% sort()
+        
+        # Generate distinct colors
+        n_colors <- length(grps)
+        if(n_colors < 3) n_colors <- 3
+        
+        # Use Set1 or Paired for distinct groups
+        cols <- suppressWarnings(RColorBrewer::brewer.pal(n = n_colors, name = "Set1"))
+        
+        # Interpolate if we have too many groups
+        if(length(grps) > length(cols)) {
+            cols <- colorRampPalette(cols)(length(grps))
+        } else {
+            cols <- cols[1:length(grps)]
+        }
+        
+        names(cols) <- grps
+        return(cols)
+    })
+    
+    # --- OUTPUTS (For the Main Window) ---
+    
+    # 1. The Map (Left Column)
+    output$ggplot_map <- renderPlot({
+        req(viewer_map_data(), viewer_palette())
+        
+        ggplot(viewer_map_data()) +
+            geom_sf(aes(fill = as.factor(comps)), color = "black", size = 0.2, alpha = input$viewer_alpha) +
+            scale_fill_manual(values = viewer_palette(), name = "Group") +
+            theme_minimal() +
+            theme(legend.position = "bottom") +
+            labs(title = paste("Distribution (Ct =", input$viewer_threshold, ")"))
+    })
+    
+    # 2. The Network (Right Column)
+    output$graph_plot <- renderPlot({
+        req(viewer_sub_graph(), viewer_palette())
+        
+        # Layout: Nicely or Kamada-Kawai
+        lay <- create_layout(viewer_sub_graph(), layout = "nicely")
+        
+        p <- ggraph(lay) +
+            geom_edge_link(aes(alpha = Cs), width = 1, show.legend = FALSE) +
+            geom_node_point(aes(fill = as.factor(comps)), size = 5, shape = 21, color = "black") +
+            scale_fill_manual(values = viewer_palette()) +
+            theme_graph() +
+            theme(legend.position = "none")
+        
+        # Add labels if checked
+        if(isTRUE(input$viewer_show_labels)) {
+            p <- p + geom_node_text(aes(label = name), repel = TRUE, size = 4, fontface="bold")
+        }
+        
+        return(p)
+    })
+    
+    # 3. The Table (Bottom Row)
+    output$view_species_table <- DT::renderDT({
+        req(viewer_map_data())
+        
+        viewer_map_data() %>%
+            sf::st_drop_geometry() %>%
+            select(Species = sp, Group_ID = comps) %>%
+            arrange(Group_ID, Species)
+        
+    }, options = list(pageLength = 5, scrollX = TRUE))
+    
+    
+    
+    
     
 } # End Server
 
