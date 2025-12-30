@@ -15,7 +15,7 @@ Spatial analysis to its essence in an extremely simple theoretical and conceptua
     <h2> WARNING!!! </h2>
   </td>
   <td>
-    SCAN V2 is not ready yet... I am migrating old tools and incoroporating new ones, such as an improved Cs calcultion using parallel multi core calculation...
+    SCAN V2 is not ready yet... I am migrating old tools and incoroporating new ones, such as an improved Cs calcultion using parallel multi core calculation... Pls see SCAN_R_4.5.2 in github.com/cassianogatto
   </td> 
   </tr>  
 </table>
