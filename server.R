@@ -234,11 +234,10 @@ server <- function(input, output, session) {
     # B. Calculation Engine (SF Serial)
     observeEvent(input$calculate_Cs, {
         req(map_data()) 
-<<<<<<< HEAD
+
         
         # 1. PRE-PROCESSING
-=======
->>>>>>> 7e7d9cec9725429806b2a5bcc5ff0b52a45d8da2
+
         showNotification("Preparing Data...", type = "message")
         shinyjs::runjs("$('#right_panel_container').show();") 
         
@@ -624,32 +623,46 @@ server <- function(input, output, session) {
         }
     )
     
-    ###################### in obras  >>>>
     
     # --- VIEWER ----
     
-    # A. UI DO SELETOR DE CHORÓTIPOS (NO PAINEL FLUTUANTE)
+    # --- IN SERVER.R ---
+    
+    # 1. GENERATE THE CHOROTYPE LIST (Based on Slider + Results)
     output$chorotype_selector_global <- renderUI({
-        req(scan_graph())
-        df <- scan_graph()[['chorotypes']]
-        
-        # Filtra grupos disponíveis baseado no slider GLOBAL
-        disp_ct <- input$threshold_global
-        available_groups <- df |> 
-            filter(abs(Threshold - disp_ct) < 0.001) |> 
-            pull(Chorotype_ID) |> 
-            unique()
-        
-        if(length(available_groups) == 0) return(helpText("No chorotypes at this threshold."))
-        
-        # Formata nomes para ficar bonito (Ct0.5_G1 -> Group 1)
-        group_nums <- gsub(".*_G", "", available_groups)
-        names(available_groups) <- paste("Group", group_nums)
-        
-        checkboxGroupInput("selected_chorotypes_global", NULL, # Label vazio pois já tem título no UI
-                           choices = available_groups,
-                           selected = available_groups[1:min(3, length(available_groups))], 
-                           inline = TRUE)
+      
+      # Wait for the main analysis results
+      req(scan_graph()) 
+      
+      # Extract the table of chorotypes from your results object
+      # (Ensuring scan_graph() is the reactive containing the list with 'chorotypes')
+      df <- scan_graph()[['chorotypes']]
+      
+      # Filter groups based on the Slider (input$threshold_global)
+      disp_ct <- input$threshold_global
+      
+      # Logic to find matching groups (Allowing for tiny float differences)
+      available_groups <- df |> 
+        filter(abs(Threshold - disp_ct) < 0.001) |> 
+        pull(Chorotype_ID) |> 
+        unique()
+      
+      # If no groups found at this Ct, show a message
+      if(length(available_groups) == 0) {
+        return(helpText(paste("No chorotypes found at Ct =", disp_ct)))
+      }
+      
+      # Format names for the UI (Ct0.5_G1 -> Group 1)
+      group_nums <- gsub(".*_G", "", available_groups)
+      names(available_groups) <- paste("Group", group_nums)
+      
+      # Create the Checkboxes
+      checkboxGroupInput("selected_chorotypes_global", 
+                         label = NULL,
+                         choices = available_groups,
+                         # Select top 3 by default so the user sees something immediately
+                         selected = available_groups[1:min(3, length(available_groups))], 
+                         inline = FALSE) # <--- Changed to FALSE for better vertical stacking
     })
     
     # B. REACTIVE UNIFICADO (DADOS FILTRADOS)

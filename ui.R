@@ -362,34 +362,84 @@ ui <- fillPage(
     
   
     # --- 6. SCAN Viewer ----
-    conditionalPanel(
-        condition = "input.top_nav == 'SCAN Viewer'",
-        absolutePanel(top = 70, left = "15%", right = "15%",
-          div(class = "scroll-panel", h2("SCAN Viewer"),
-              fluidPage(
-                  column(5, 
-                         box(width = NULL, title = "Static Map", status = "primary", solidHeader = TRUE,
-                             plotOutput("ggplot_map", height = "500px")
+    conditionalPanel(condition = "input.top_nav == 'SCAN Viewer'",
+                     
+                     absolutePanel(
+                       id = "scan_viewer_main",
+                       top = 70, left = "2%", right = "320px", # Right margin leaves space for the settings panel
+                       bottom = 20,
+                       style = "overflow-y: auto; z-index: 1000;", # Scrollable if content is tall
+                       
+                       div(class = "scroll-panel", 
+                           fluidPage(
+                             # Row 1: Map and Graph
+                             fluidRow(
+                               column(6, 
+                                      box(width = NULL, title = "Static Map", status = "primary", solidHeader = TRUE,
+                                          plotOutput("ggplot_map", height = "450px")
+                                      )
+                               ),
+                               column(6,
+                                      box(width = NULL, title = "Network Topology", status = "primary", solidHeader = TRUE,
+                                          plotOutput("graph_plot", height = "450px")
+                                      )
+                               )
+                             ),
+                             
+                             # Row 2: The Big Table
+                             fluidRow(
+                               column(12,
+                                      box(width = NULL, title = "Species List (Selected Groups)", status = "success", solidHeader = TRUE,
+                                          DT::DTOutput("view_species_table")
+                                      )
+                               )
+                             )
+                           )
                          )
-                  ),
-                  column(5,
-                         box(width = NULL, title = "Network Topology", status = "primary", solidHeader = TRUE,
-                             plotOutput("graph_plot", height = "500px")
-                         )
-                  ), 
-                  
-                  column(8,
-                         box(width = NULL, title = "Species List (Selected Groups)", status = "success", solidHeader = TRUE,
-                             DT::DTOutput("view_species_table")
-                         ),
-                  ),
-              ),
-              
-          ), # div
-                  ) # absolute panel scan
-    ), # conditional panel scan
+                       )
+                     ), # conditional panel scan
     
-  # --- PANEL: SETTINGS & FILES (Downloads) ----
+  
+    
+  
+    # --- 7. SCAN VIEWER CONTROLLER (Right Side) ----
+    conditionalPanel(
+      condition = "input.top_nav == 'SCAN Viewer'",
+      
+      absolutePanel(
+        id = "scan_viewer_controls",
+        class = "panel panel-info", 
+        top = 70, right = 20, width = 280, # Fixed width, sitting on the right
+        style = "z-index: 1100; opacity: 0.95;", # Slightly above the main panel
+        draggable = TRUE,
+        
+        div(class = "panel-heading", tags$h4(icon("cogs"), " Viewer Settings")),
+        
+        div(class = "panel-body",
+            
+            # --- 1. Threshold (Ct) ---
+            sliderInput("threshold_global", "Threshold (Ct):", min=0, max=1, value=0.5, step=0.05),
+            
+            tags$hr(),
+            
+            # --- 2. Chorotype Selector ---
+            # This uiOutput MUST be generated in server.R
+            tags$h5(tags$b("Select Chorotype:")),
+            div(style = "max-height: 250px; overflow-y: auto; background: #fff; border: 1px solid #ccc; padding: 5px;",
+                uiOutput("chorotype_selector_global")
+            ),
+            
+            tags$hr(),
+            
+            # --- 3. Visual Tweaks ---
+            checkboxInput("show_minigraph", "Show Graph", value = TRUE),
+            selectInput("palette_global", "Palette:", choices = c("Set2", "Set1", "Paired", "Dark2", "RdYlBu")),
+            sliderInput("alpha_global", "Transparency:", min=0, max=1, value=0.7, step=0.1)
+        )
+      )
+    ),
+  
+    # --- PANEL: SETTINGS & FILES (Downloads) ----
   
    conditionalPanel(
     condition = "input.top_nav == 'Settings&Files'",
