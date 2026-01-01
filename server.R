@@ -378,6 +378,48 @@ server <- function(input, output, session) {
         return(results)
     })
     
+    # --- DEBUGGER: VIEWER DIAGNOSTICS ----
+    output$debug_viewer_console <- renderPrint({
+        cat("--- 1. NAVIGATION STATE ---\n")
+        cat("Top Nav (input$top_nav):      ", input$top_nav, "\n")
+        cat("Sub Nav (analysis_subtabs):   ", input$analysis_subtabs, "\n")
+        
+        cat("\n--- 2. DATA AVAILABILITY ---\n")
+        # Check if scan_graph exists and has data
+        has_graph <- FALSE
+        if(exists("scan_graph")) {
+            try({
+                res <- scan_graph()
+                if(!is.null(res)) {
+                    cat("SCAN Results:                 AVAILABLE\n")
+                    cat("Chorotypes Found:             ", nrow(res[['chorotypes']]), "\n")
+                    has_graph <- TRUE
+                } else {
+                    cat("SCAN Results:                 NULL\n")
+                }
+            })
+        } else {
+            cat("SCAN Results:                 NOT FOUND (Reactive doesn't exist)\n")
+        }
+        
+        cat("\n--- 3. RIGHT PANEL INPUTS ---\n")
+        cat("Threshold (input$viewer_threshold):      ", input$viewer_threshold, "\n")
+        cat("Selected Groups (input$viewer_selected_groups): ", paste(input$viewer_selected_groups, collapse=", "), "\n")
+        
+        cat("\n--- 4. INTERMEDIATE REACTIVES ---\n")
+        # Check if the helpers are calculating
+        if(has_graph && !is.null(input$viewer_threshold)) {
+            tryCatch({
+                sub <- viewer_sub_graph()
+                cat("Sub-Graph Nodes:              ", igraph::vcount(sub), "\n")
+                cat("Sub-Graph Edges:              ", igraph::ecount(sub), "\n")
+            }, error = function(e) cat("Sub-Graph Error:              ", e$message, "\n"))
+        } else {
+            cat("Sub-Graph:                    WAITING FOR INPUTS\n")
+        }
+    })
+    
+    
     # --- 6. UI OUTPUTS & RENDERERS ----
      
     # A. SCAN Preview Table (Main Window)
@@ -461,7 +503,9 @@ server <- function(input, output, session) {
                     }
                 )
                 
-                # --- CASE C: SCAN TAB ----
+                # DEBUG
+                
+                # --- CASE C: SCAN TAB ---
             } else if (!is.null(sub_lvl) && sub_lvl == "SCAN") {
                 has_matrix <- !is.null(cs_matrix_data())
                 has_results <- FALSE
@@ -478,11 +522,15 @@ server <- function(input, output, session) {
                         if(has_results) {
                             tagList(
                                 hr(),
-                                # --- NEW: DOWNLOAD BUTTON BEFORE TABLE ---
-                                downloadButton("dl_chorotypes_sidebar", "Download Groups", 
-                                               class = "btn-success btn-xs", 
-                                               style = "width: 100%; margin-bottom: 15px;"),
+                                h4(style="color: #2c3e50;", icon("download"), " Download Results"),
                                 
+                                # --- THE 4 DEBUG BUTTONS ---
+                                downloadButton("dl_scan_groups", "1. Groups List (.csv)", class = "btn-success btn-xs", style = "width: 100%; margin-bottom: 5px; text-align: left;"),
+                                downloadButton("dl_scan_nodes", "2. Graph Nodes (.csv)", class = "btn-info btn-xs", style = "width: 100%; margin-bottom: 5px; text-align: left;"),
+                                downloadButton("dl_scan_edges", "3. Graph Edges (.csv)", class = "btn-info btn-xs", style = "width: 100%; margin-bottom: 5px; text-align: left;"),
+                                downloadButton("dl_scan_params", "4. Parameters (.csv)", class = "btn-default btn-xs", style = "width: 100%; margin-bottom: 15px; text-align: left;"),
+                                
+                                hr(),
                                 h4(style="color: #2c3e50;", icon("list-ol"), " Results Summary"),
                                 tableOutput("mini_scan_summary"),
                                 
@@ -497,17 +545,99 @@ server <- function(input, output, session) {
                         }
                     )
                 }
-                # --- CASE D: SCAN VIEWER (Visual Exploration) ---
-            } else if (!is.null(top_lvl) && top_lvl == "SCAN Viewer") {
+            
                 
-                # 1. Check if we have results to view
+                
+                # --- CASE C: SCAN TAB ---- 
+            # } else if (!is.null(sub_lvl) && sub_lvl == "SCAN") {
+            #     has_matrix <- !is.null(cs_matrix_data())
+            #     has_results <- FALSE
+            #     try({ if(exists("scan_graph") && !is.null(scan_graph())) has_results <- TRUE }, silent=TRUE)
+            #     
+            #     panel_title <- "SCAN Status"
+            #     
+            #     if (!has_matrix) {
+            #         panel_content <- tagList(div(style="text-align: center; color: #e74c3c;", icon("exclamation-triangle", "fa-3x"), h4("Matrix Missing")))
+            #     } else {
+            #         panel_content <- tagList(
+            #             p(class="text-muted", icon("info-circle"), " Configure parameters in the main window."),
+            #             
+            #             if(has_results) {
+            #                 tagList(
+            #                     hr(),
+            #                     # --- NEW: DOWNLOAD BUTTON BEFORE TABLE ---
+            #                     downloadButton("dl_chorotypes_sidebar", "Download Groups", 
+            #                                    class = "btn-success btn-xs", 
+            #                                    style = "width: 100%; margin-bottom: 15px;"),
+            #                     
+            #                     h4(style="color: #2c3e50;", icon("list-ol"), " Results Summary"),
+            #                     tableOutput("mini_scan_summary"),
+            #                     
+            #                     hr(),
+            #                     p(strong("Chorotypes List:")),
+            #                     div(style = "max-height: 300px; overflow-y: auto; border: 1px solid #ddd;",
+            #                         tableOutput("scan_chorotype_list")
+            #                     )
+            #                 )
+            #                 # --- CASE D: SCAN VIEWER (Visual Exploration) ---
+            #             } else if (!is.null(top_lvl) && top_lvl == "SCAN Viewer") {
+            #                 
+            #                 # Check for Analysis Results
+            #                 has_results <- FALSE
+            #                 try({ if(exists("scan_graph") && !is.null(scan_graph())) has_results <- TRUE }, silent=TRUE)
+            #                 
+            #                 panel_title <- "Viewer Controls"
+            #                 
+            #                 if(!has_results) {
+            #                     # 🔴 STOP: No Data
+            #                     panel_content <- tagList(
+            #                         div(style="text-align: center; color: #e74c3c; padding: 20px;",
+            #                             icon("ban", "fa-3x"),
+            #                             h4("No Analysis Found"),
+            #                             p("Please run the SCAN Analysis first.")
+            #                         )
+            #                     )
+            #                 } else {
+            #                     # 🟢 READY: Controls
+            #                     params <- scan_graph()[['parameters']]
+            #                     
+            #                     panel_content <- tagList(
+            #                         
+            #                         # 1. Threshold Slider
+            #                         div(style="background: #ecf0f1; padding: 10px; border-radius: 5px;",
+            #                             h5(icon("sliders-h"), " 1. Select Threshold (Ct)"),
+            #                             sliderInput("viewer_threshold", NULL, 
+            #                                         min = params$Min_Ct, max = params$Max_Ct, 
+            #                                         value = params$Min_Ct, step = params$Resolution)
+            #                         ),
+            #                         
+            #                         # 2. Group Selector (Dynamic)
+            #                         h5(icon("layer-group"), " 2. Select Chorotypes"),
+            #                         p(class="text-muted", style="font-size: 0.9em;", "Groups available at this Ct:"),
+            #                         uiOutput("viewer_group_selector"), # <--- Defined in Step 2
+            #                         
+            #                         
+            #                         # 3. Visual Settings
+            #                         h5(icon("paint-brush"), " 3. Styles"),
+            #                         sliderInput("viewer_alpha", "Map Opacity", 0, 1, 0.6, 0.1),
+            #                         checkboxInput("viewer_labels", "Show Node Labels", value = TRUE)
+            #                     )
+            #                 }
+            #             }
+            #         )
+            #     }
+            #     # --- CASE D: SCAN VIEWER (Visual Exploration) ---
+            #     # --- CASE D: SCAN VIEWER (Visual Exploration) ---
+             } else if (!is.null(top_lvl) && top_lvl == "SCAN Viewer") {
+                
+                # Check for Analysis Results
                 has_results <- FALSE
                 try({ if(exists("scan_graph") && !is.null(scan_graph())) has_results <- TRUE }, silent=TRUE)
                 
                 panel_title <- "Viewer Controls"
                 
                 if(!has_results) {
-                    # 🔴 STOP: No Analysis
+                    # 🔴 STOP: No Data
                     panel_content <- tagList(
                         div(style="text-align: center; color: #e74c3c; padding: 20px;",
                             icon("ban", "fa-3x"),
@@ -516,38 +646,32 @@ server <- function(input, output, session) {
                         )
                     )
                 } else {
-                    # 🟢 READY: The Controls
-                    
-                    # <<<<<<<<<<< HERE WE SHOULD TAKE THE PARAMETERS FROM CS TABLE?
-                    
-                    # Get Min/Max/Step from the parameters used in calculation
+                    # 🟢 READY: Controls
+                    # Get parameters from the calculation to set slider limits
                     params <- scan_graph()[['parameters']]
                     
                     panel_content <- tagList(
                         
-                        # 1. The Threshold Slider (Hierarchy Level 1)
+                        # 1. Threshold Slider
                         div(style="background: #ecf0f1; padding: 10px; border-radius: 5px;",
                             h5(icon("sliders-h"), " 1. Select Threshold (Ct)"),
                             sliderInput("viewer_threshold", NULL, 
-                                        min = params$Min_Ct, 
-                                        max = params$Max_Ct, 
-                                        value = params$Min_Ct, 
-                                        step = params$Resolution)
+                                        min = params$Min_Ct, max = params$Max_Ct, 
+                                        value = params$Min_Ct, step = params$Resolution)
                         ),
+                        hr(),
                         
-                        # 2. The Group Selector (Hierarchy Level 2)
-                        # This is dynamic: it changes based on the slider above
+                        # 2. Group Selector (This comes from Section 10 logic)
                         h5(icon("layer-group"), " 2. Select Chorotypes"),
-                        p(class="text-muted", style="font-size: 0.9em;", "Chorotypes at this Ct:"),
+                        p(class="text-muted", style="font-size: 0.9em;", "Groups available at this Ct:"),
+                        uiOutput("viewer_group_selector"), 
                         
-                        # The UI Output from Server Part B
-                        uiOutput("viewer_group_selector"),
+                        hr(),
                         
-                        # hr(),
-                        
-                        # 3. Visual Toggles (Optional polish)
-                        checkboxInput("viewer_show_labels", "Show Species Labels", value = TRUE),
-                        sliderInput("viewer_alpha", "Map Opacity", 0, 1, 0.5, 0.1)
+                        # 3. Visual Settings
+                        h5(icon("paint-brush"), " 3. Styles"),
+                        sliderInput("viewer_alpha", "Map Opacity", 0, 1, 0.6, 0.1),
+                        checkboxInput("viewer_labels", "Show Node Labels", value = TRUE)
                     )
                 }
             }
@@ -589,8 +713,143 @@ server <- function(input, output, session) {
     }, colnames = FALSE, width = "100%", bordered = TRUE)
     
     
-    # --- 9. DOWNLOADS ----
+    # --- 10. SCAN VIEWER LOGIC (The Visual Engine) ---
     
+    # A. Dynamic Checkbox Generator (Feeds Right Panel)
+    # A. Dynamic Checkbox Generator (DIRECT VERSION)
+    output$viewer_group_selector_direct <- renderUI({
+        req(scan_graph(), input$viewer_threshold)
+        
+        # 1. Get Data
+        df <- scan_graph()[['chorotypes']]
+        current_ct <- input$viewer_threshold
+        
+        # 2. Filter groups
+        available_groups <- df %>% 
+            dplyr::filter(abs(Threshold - current_ct) < 0.0001) %>%
+            dplyr::pull(Chorotype_ID) %>%
+            unique()
+        
+        if(length(available_groups) == 0) return(h5("No groups at this threshold."))
+        
+        # 3. Render Checkboxes
+        display_names <- gsub(".*_G", "Group ", available_groups)
+        names(available_groups) <- display_names
+        
+        checkboxGroupInput("viewer_selected_groups", "2. Select Groups:",
+                           choices = available_groups,
+                           selected = available_groups[1], 
+                           inline = TRUE)
+    })
+    
+    # B. Helper: The Sub-Graph (Network Filter)
+    viewer_sub_graph <- reactive({
+        req(scan_graph(), input$viewer_threshold, input$viewer_selected_groups)
+        
+        # 1. Identify Species in Selected Groups
+        df <- scan_graph()[['chorotypes']]
+        selected_spp <- df %>% 
+            filter(Chorotype_ID %in% input$viewer_selected_groups) %>% 
+            pull(Species) %>% unique()
+        
+        req(length(selected_spp) > 0)
+        
+        # 2. Filter Master Graph
+        g_full <- scan_graph()[['graph']]
+        
+        g_view <- g_full %>%
+            activate(edges) %>%
+            filter(Cs >= input$viewer_threshold) %>%
+            activate(nodes) %>%
+            filter(name %in% selected_spp) %>%
+            mutate(comps = group_components()) # Recalculate IDs for coloring
+        
+        return(g_view)
+    })
+    
+    # C. Helper: The Map Data (Geo Filter)
+    viewer_map_data <- reactive({
+        req(viewer_sub_graph(), map_data())
+        
+        # Get species from the graph
+        spp_names <- viewer_sub_graph() %>% activate(nodes) %>% pull(name)
+        
+        # Join Shapefile with Graph Group IDs
+        node_data <- viewer_sub_graph() %>% activate(nodes) %>% as_tibble() %>% select(name, comps)
+        
+        map_final <- map_data() %>% 
+            filter(sp %in% spp_names) %>%
+            left_join(node_data, by = c("sp" = "name"))
+        
+        return(map_final)
+    })
+    
+    # D. Helper: Consistent Palette
+    viewer_palette <- reactive({
+        req(viewer_sub_graph())
+        grps <- viewer_sub_graph() %>% activate(nodes) %>% as_tibble() %>% pull(comps) %>% unique() %>% sort()
+        
+        n_colors <- length(grps)
+        if(n_colors < 3) n_colors <- 3
+        cols <- suppressWarnings(RColorBrewer::brewer.pal(n = n_colors, name = "Set1"))
+        
+        if(length(grps) > length(cols)) cols <- colorRampPalette(cols)(length(grps))
+        else cols <- cols[1:length(grps)]
+        
+        names(cols) <- grps
+        return(cols)
+    })
+    
+    # --- OUTPUTS (Linked to Main Window UI) ---
+    
+    # 1. Static Map (ggplot)
+    output$ggplot_map <- renderPlot({
+        req(viewer_map_data(), viewer_palette())
+        
+        ggplot(viewer_map_data()) +
+            geom_sf(aes(fill = as.factor(comps)), color = "black", size = 0.2, alpha = input$viewer_alpha) +
+            scale_fill_manual(values = viewer_palette(), name = "Group") +
+            theme_minimal() +
+            theme(legend.position = "bottom") +
+            labs(title = paste("Spatial Distribution (Ct =", input$viewer_threshold, ")"))
+    })
+    
+    # 2. Network Graph (ggraph)
+    output$graph_plot <- renderPlot({
+        req(viewer_sub_graph(), viewer_palette())
+        
+        lay <- create_layout(viewer_sub_graph(), layout = "nicely")
+        
+        p <- ggraph(lay) +
+            geom_edge_link(aes(alpha = Cs), width = 1, show.legend = FALSE) +
+            geom_node_point(aes(fill = as.factor(comps)), size = 5, shape = 21, color = "black") +
+            scale_fill_manual(values = viewer_palette()) +
+            theme_graph() +
+            theme(legend.position = "none")
+        
+        if(isTRUE(input$viewer_labels)) {
+            p <- p + geom_node_text(aes(label = name), repel = TRUE, size = 4, fontface="bold")
+        }
+        return(p)
+    })
+    
+    # 3. Species Table
+    output$view_species_table <- DT::renderDT({
+        req(viewer_map_data())
+        
+        viewer_map_data() %>%
+            sf::st_drop_geometry() %>%
+            select(Species = sp, Group_ID = comps) %>%
+            distinct() %>%
+            arrange(Group_ID, Species)
+    }, options = list(pageLength = 10, scrollX = TRUE))
+    
+    
+    # ==========================================================================
+    # --- 9. DOWNLOADS (Updated with all 4 types) ---
+    # ==========================================================================
+    
+    # 1. Map Export
     output$dl_map <- downloadHandler(
         filename = function() { paste0("SCAN_Map_Export_", Sys.Date(), ".zip") },
         content = function(file) {
@@ -603,27 +862,85 @@ server <- function(input, output, session) {
         }, contentType = "application/zip"
     )
     
-    # 2. Cs Matrix Download Handlers
-    cs_h <- downloadHandler(
+    # 2. Cs Matrix
+    output$dl_cs_sidebar <- downloadHandler(
         filename = function() { paste0("SCAN_Cs_", Sys.Date(), ".csv") },
         content = function(file) { write.csv(cs_matrix_data(), file, row.names = FALSE) }
     )
-    output$dl_cs <- cs_h         # Main window button
-    output$dl_cs_sidebar <- cs_h # <--- NEW SIDEBAR BUTTON
-    # output$dl_cs_float <- cs_h # (Deleted, no longer needed)
     
-    # 3. Chorotypes Download Handlers
-    choro_h <- downloadHandler(
+    # 3. SCAN Results (The 4 Debug Files)
+    
+    # A. Groups (Chorotypes)
+    output$dl_scan_groups <- downloadHandler(
         filename = function() { paste0("SCAN_Groups_", Sys.Date(), ".csv") },
         content = function(file) { 
             req(scan_graph())
-            # Save the list format or the summary format
-            df <- scan_graph()[['chorotypes']]
-            write.csv(df, file, row.names = FALSE) 
+            write.csv(scan_graph()[['chorotypes']], file, row.names = FALSE) 
         }
     )
     
+    # B. Edges (Connections)
+    output$dl_scan_edges <- downloadHandler(
+        filename = function() { paste0("SCAN_Edges_", Sys.Date(), ".csv") },
+        content = function(file) { 
+            req(scan_graph())
+            write.csv(scan_graph()[['graph_edges']], file, row.names = FALSE) 
+        }
+    )
     
+    # C. Nodes (Species Attributes)
+    output$dl_scan_nodes <- downloadHandler(
+        filename = function() { paste0("SCAN_Nodes_", Sys.Date(), ".csv") },
+        content = function(file) { 
+            req(scan_graph())
+            write.csv(scan_graph()[['graph_nodes']], file, row.names = FALSE) 
+        }
+    )
+    
+    # D. Parameters (Settings used)
+    output$dl_scan_params <- downloadHandler(
+        filename = function() { paste0("SCAN_Parameters_", Sys.Date(), ".csv") },
+        content = function(file) { 
+            req(scan_graph())
+            write.csv(scan_graph()[['parameters']], file, row.names = FALSE) 
+        }
+    )
+    
+    # # --- 10. DOWNLOADS ----
+    # 
+    # output$dl_map <- downloadHandler(
+    #     filename = function() { paste0("SCAN_Map_Export_", Sys.Date(), ".zip") },
+    #     content = function(file) {
+    #         req(map_data())
+    #         temp_dir <- tempdir()
+    #         file_base <- "scan_map_export"
+    #         sf::st_write(map_data(), file.path(temp_dir, paste0(file_base, ".shp")), delete_dsn = TRUE, quiet = TRUE)
+    #         zip_files <- list.files(temp_dir, pattern = file_base, full.names = TRUE)
+    #         utils::zip(zipfile = file, files = zip_files, flags = "-j")
+    #     }, contentType = "application/zip"
+    # )
+    # 
+    # # 2. Cs Matrix Download Handlers
+    # cs_h <- downloadHandler(
+    #     filename = function() { paste0("SCAN_Cs_", Sys.Date(), ".csv") },
+    #     content = function(file) { write.csv(cs_matrix_data(), file, row.names = FALSE) }
+    # )
+    # output$dl_cs <- cs_h         # Main window button
+    # output$dl_cs_sidebar <- cs_h # <--- NEW SIDEBAR BUTTON
+    # # output$dl_cs_float <- cs_h # (Deleted, no longer needed)
+    # 
+    # # 3. Chorotypes Download Handlers
+    # choro_h <- downloadHandler(
+    #     filename = function() { paste0("SCAN_Groups_", Sys.Date(), ".csv") },
+    #     content = function(file) { 
+    #         req(scan_graph())
+    #         # Save the list format or the summary format
+    #         df <- scan_graph()[['chorotypes']]
+    #         write.csv(df, file, row.names = FALSE) 
+    #     }
+    # )
+    # 
+    # 
     # --- VIEWER ----
     
     # --- IN SERVER.R ---

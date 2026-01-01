@@ -83,7 +83,7 @@ ui <- fillPage(
            # SETTINGS
            tags$div(class = "nav-item", 
                     onclick = "Shiny.setInputValue('top_nav', 'Settings&Files');", 
-                    "Settings&Files")
+                    "Settings&Files"),
   ),
     
     # --- 3. The Leaflet Map Background ----
@@ -373,18 +373,71 @@ ui <- fillPage(
                        div(class = "scroll-panel", 
                            fluidPage(
                              # Row 1: Map and Graph
-                             fluidRow(
-                               column(6, 
-                                      box(width = NULL, title = "Static Map", status = "primary", solidHeader = TRUE,
-                                          plotOutput("ggplot_map", height = "450px")
-                                      )
+                               # diagnosis test
+                               # In ui.R, inside the SCAN Viewer tab
+                               fluidRow(
+                                   column(6, 
+                                          # Keep the map for now
+                                          box(width=NULL, title="Static Map", status="primary", plotOutput("ggplot_map", height="500px"))
+                                   ),
+                                   column(6, 
+                                          # REPLACED GRAPH WITH DEBUGGER
+                                          box(width=NULL, title="⚠️ SYSTEM DIAGNOSTICS", status="warning", solidHeader=TRUE,
+                                              verbatimTextOutput("debug_viewer_console")
+                                          )
+                                   )
                                ),
-                               column(6,
-                                      box(width = NULL, title = "Network Topology", status = "primary", solidHeader = TRUE,
-                                          plotOutput("graph_plot", height = "450px")
-                                      )
+                               
+                               
+                               
+                                 # DEBUG
+                               
+                               # 1. DIRECT CONTROLS ROW (Bypassing Right Panel)
+                               fluidRow(
+                                   box(width = 12, title = "Viewer Controls", status = "info", solidHeader = TRUE,
+                                       column(4, 
+                                              sliderInput("viewer_threshold", "1. Threshold (Ct):", 
+                                                          min = 0, max = 1, value = 0.5, step = 0.01)
+                                       ),
+                                       column(8, 
+                                              uiOutput("viewer_group_selector_direct") # New ID for safety
+                                       )
+                                   )
+                               ),
+                               
+                               # 2. PLOTS ROW
+                               fluidRow(
+                                   column(6, 
+                                          box(width=NULL, title="Static Map", status="primary", 
+                                              plotOutput("ggplot_map", height="500px"))
+                                   ),
+                                   column(6, 
+                                          # Keeping the debugger for one last check
+                                          box(width=NULL, title="System Diagnostics", status="warning", 
+                                              verbatimTextOutput("debug_viewer_console"))
+                                   )
+                               ),
+                               
+                               # 3. DATA TABLE ROW
+                               fluidRow(
+                                   column(12, 
+                                          box(width=NULL, title="Species List", status="success", 
+                                              DT::DTOutput("view_species_table"))
+                                   )
                                )
-                             ),
+                           ),
+                             # fluidRow(
+                             #   column(6, 
+                             #          box(width = NULL, title = "Static Map", status = "primary", solidHeader = TRUE,
+                             #              plotOutput("ggplot_map", height = "450px")
+                             #          )
+                             #   ),
+                             #   column(6,
+                             #          box(width = NULL, title = "Network Topology", status = "primary", solidHeader = TRUE,
+                             #              plotOutput("graph_plot", height = "450px")
+                             #          )
+                             #   )
+                             # ),
                              
                              # Row 2: The Big Table
                              fluidRow(
@@ -396,7 +449,7 @@ ui <- fillPage(
                              )
                            )
                          )
-                       )
+                       #)
                      ), # conditional panel scan
     
   
