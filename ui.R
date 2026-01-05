@@ -369,41 +369,28 @@ ui <- fillPage(
                        top = 70, left = "2%", right = "320px", # Right margin leaves space for the settings panel
                        bottom = 20,
                        style = "overflow-y: auto; z-index: 1000;", # Scrollable if content is tall
-                       
                        div(class = "scroll-panel", 
                            fluidPage(
-                             # Row 1: Map and Graph
-                               # diagnosis test
-                               # In ui.R, inside the SCAN Viewer tab
-                               fluidRow(
-                                   column(6, 
-                                          # Keep the map for now
-                                          box(width=NULL, title="Static Map", status="primary", plotOutput("ggplot_map", height="500px"))
-                                   ),
-                                   column(6, 
-                                          # REPLACED GRAPH WITH DEBUGGER
-                                          box(width=NULL, title="⚠️ SYSTEM DIAGNOSTICS", status="warning", solidHeader=TRUE,
-                                              verbatimTextOutput("debug_viewer_console")
-                                          )
-                                   )
-                               ),
-                               
-                               
-                               
-                                 # DEBUG
-                               
-                               # 1. DIRECT CONTROLS ROW (Bypassing Right Panel)
+
+                               # 1. DIRECT CONTROLS ROW
                                fluidRow(
                                    box(width = 12, title = "Viewer Controls", status = "info", solidHeader = TRUE,
-                                       column(4, 
-                                              sliderInput("viewer_threshold", "1. Threshold (Ct):", 
-                                                          min = 0, max = 1, value = 0.5, step = 0.01)
-                                       ),
-                                       column(8, 
-                                              uiOutput("viewer_group_selector_direct") # New ID for safety
-                                       )
+                                       column(4, sliderInput("viewer_threshold", "1. Threshold (Ct):", 
+                                                          min = 0, max = 1, value = 0.5, step = 0.01)),
+                                       column(8, uiOutput("viewer_group_selector_direct")),
                                    )
                                ),
+                                   
+                               # Visual settings
+                               fluidRow(width = 12, title = "Visual Settings", status = "info", solidHeader = TRUE,
+                                    column(2, checkboxInput("show_minigraph", "Show Graph", value = TRUE)),
+                                    
+                                    column(4, sliderInput("alpha_global", "Transparency:", min=0, max=1, value=0.7, step=0.1)),
+                                           
+                                    column(4,selectInput("palette_global", "Palette:", choices = c("Set2", "Set1", "Paired", "Dark2", "RdYlBu"))),       
+                               ),
+                               
+                               # --- 3. Visual Tweaks ---
                                
                                # 2. PLOTS ROW
                                fluidRow(
@@ -412,43 +399,27 @@ ui <- fillPage(
                                               plotOutput("ggplot_map", height="500px"))
                                    ),
                                    column(6, 
-                                          # Keeping the debugger for one last check
-                                          box(width=NULL, title="System Diagnostics", status="warning", 
-                                              verbatimTextOutput("debug_viewer_console"))
+                                          # # Keeping the debugger for one last check
+                                          # box(width=NULL, title="System Diagnostics", status="warning", 
+                                          #     verbatimTextOutput("debug_viewer_console"))
+                                    
+                                         box(width=NULL, title="Static Map", status="primary",
+                                         plotOutput("graph_plot", height = "500px")
+                                         ),
                                    )
                                ),
                                
                                # 3. DATA TABLE ROW
                                fluidRow(
                                    column(12, 
-                                          box(width=NULL, title="Species List", status="success", 
+                                          box(width=NULL, title="Species List", status="success",  solidHeader = TRUE,
                                               DT::DTOutput("view_species_table"))
                                    )
                                )
                            ),
-                             # fluidRow(
-                             #   column(6, 
-                             #          box(width = NULL, title = "Static Map", status = "primary", solidHeader = TRUE,
-                             #              plotOutput("ggplot_map", height = "450px")
-                             #          )
-                             #   ),
-                             #   column(6,
-                             #          box(width = NULL, title = "Network Topology", status = "primary", solidHeader = TRUE,
-                             #              plotOutput("graph_plot", height = "450px")
-                             #          )
-                             #   )
-                             # ),
-                             
-                             # Row 2: The Big Table
-                             fluidRow(
-                               column(12,
-                                      box(width = NULL, title = "Species List (Selected Groups)", status = "success", solidHeader = TRUE,
-                                          DT::DTOutput("view_species_table")
-                                      )
-                               )
-                             )
-                           )
-                         )
+
+                           )# endds div class scroll panel
+                         )# ends absolute panel
                        #)
                      ), # conditional panel scan
     
@@ -468,27 +439,11 @@ ui <- fillPage(
         
         div(class = "panel-heading", tags$h4(icon("cogs"), " Viewer Settings")),
         
-        div(class = "panel-body",
-            
-            # --- 1. Threshold (Ct) ---
-            sliderInput("threshold_global", "Threshold (Ct):", min=0, max=1, value=0.5, step=0.05),
-            
-            tags$hr(),
-            
-            # --- 2. Chorotype Selector ---
-            # This uiOutput MUST be generated in server.R
-            tags$h5(tags$b("Select Chorotype:")),
-            div(style = "max-height: 250px; overflow-y: auto; background: #fff; border: 1px solid #ccc; padding: 5px;",
-                uiOutput("chorotype_selector_global")
-            ),
-            
-            tags$hr(),
-            
-            # --- 3. Visual Tweaks ---
-            checkboxInput("show_minigraph", "Show Graph", value = TRUE),
-            selectInput("palette_global", "Palette:", choices = c("Set2", "Set1", "Paired", "Dark2", "RdYlBu")),
-            sliderInput("alpha_global", "Transparency:", min=0, max=1, value=0.7, step=0.1)
-        )
+        # diagnostics here
+        # Keeping the debugger for one last check
+        box(width=NULL, title="System Diagnostics", status="warning",
+            verbatimTextOutput("debug_viewer_console"))
+ # old settings in right panel
       )
     ),
   

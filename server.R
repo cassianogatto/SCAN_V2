@@ -503,7 +503,7 @@ server <- function(input, output, session) {
                     }
                 )
                 
-                # DEBUG
+               
                 
                 # --- CASE C: SCAN TAB ---
             } else if (!is.null(sub_lvl) && sub_lvl == "SCAN") {
@@ -545,7 +545,7 @@ server <- function(input, output, session) {
                         }
                     )
                 }
-            
+            }
                 
                 
                 # --- CASE C: SCAN TAB ---- 
@@ -675,7 +675,12 @@ server <- function(input, output, session) {
                     )
                 }
             }
-        }
+        
+        # } else { if (!is.null(top_lvl) && top_lvl == "SCAN Viewer")
+                
+            
+            
+             })
         
         
         
