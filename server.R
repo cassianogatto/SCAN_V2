@@ -60,7 +60,7 @@ calculate_chunk_cs_engine <- function(species_chunk, all_shapes, areas_df) {
 
 server <- function(input, output, session) {
     
-    # --- 1. REACTIVE STATE VALUES ---
+    # --- 1. REACTIVE STATE VALUES ----
     map_data       <- reactiveVal(NULL) # Stores the Master Shapefile (Projected)
     cs_matrix_data <- reactiveVal(NULL) # Stores the Cs Matrix (sp1, sp2, Cs)
     spp_choices    <- reactiveVal(NULL) # Stores the unique species list (Memory)
@@ -420,7 +420,7 @@ server <- function(input, output, session) {
     })
     
     
-    # --- 6. UI OUTPUTS & RENDERERS ----
+    #0 --- 6. UI OUTPUTS & RENDERERS ----
      
     # A. SCAN Preview Table (Main Window)
     output$table_download_preview <- DT::renderDT({
@@ -453,250 +453,104 @@ server <- function(input, output, session) {
     
     # D. Helper Flags
     output$cs_data_available <- reactive({ !is.null(cs_matrix_data()) && nrow(cs_matrix_data()) > 0 })
+    
     outputOptions(output, "cs_data_available", suspendWhenHidden = FALSE)
     
     output$scan_results_ready <- reactive({ !is.null(scan_graph()) })
+    
     outputOptions(output, "scan_results_ready", suspendWhenHidden = FALSE)
     
-    # --- 7. RIGHT PANEL (CONTEXT AWARE - WITH DOWNLOADS) ----
     
+    # --- 7. RIGHT PANEL (CONTEXT AWARE - WITH DOWNLOADS) ----
     output$right_panel_container <- renderUI({
+        # 1. Capture Inputs
         top_lvl <- input$top_nav
         sub_lvl <- input$analysis_subtabs
-        alpha <- if(is.null(input$panel_opacity)) 0.85 else input$panel_opacity
-        panel_content <- NULL
+        
+        # 2. Defaults
+        # Initialize variable HERE so it exists in all paths
+        panel_content <- NULL 
         panel_title <- ""
         
-        if (!is.null(top_lvl) && top_lvl == "SCAN Analysis") {
+        # 3. Logic Flow
+        if (!is.null(top_lvl)) {
             
-            # --- CASE A: MAP TAB ---
-            if (!is.null(sub_lvl) && sub_lvl == "Map") {
-                panel_title <- "Map Filters"
-                panel_content <- tagList(
-                    p(class="text-muted", "Select species to highlight."),
-                    selectizeInput("map_spp_select", NULL, choices = spp_choices(), multiple = TRUE, options = list(placeholder = "Select species...")),
-                    actionButton("btn_map_reset", "Reset View", icon = icon("refresh"), size = "xs", style = "width: 100%; margin-top: 5px;")
-                )
+            # --- CASE A: SCAN ANALYSIS ---
+            if (top_lvl == "SCAN Analysis") {
                 
-                # --- CASE B: CS TAB ----
-            } else if (!is.null(sub_lvl) && sub_lvl == "Cs") {
-                has_data <- !is.null(cs_matrix_data())
-                panel_title <- "Matrix Inspector"
-                
-                panel_content <- tagList(
-                    if(has_data) {
-                        tagList(
-                            div(style="margin-bottom: 10px;", 
-                                p(strong("Dimensions:"), paste(nrow(cs_matrix_data()), "rows")),
-                                
-                                # --- NEW: DOWNLOAD BUTTON BEFORE TABLE ---
-                                downloadButton("dl_cs_sidebar", "Download Matrix", 
-                                               class = "btn-success btn-xs", 
-                                               style = "width: 100%; margin-bottom: 15px;")
-                            ),
-                            hr(),
-                            p(strong("Top Connected Pairs:")),
-                            tableOutput("mini_nodes_table") 
-                        )
-                    } else {
-                        p(class="text-warning", icon("exclamation-circle"), " No Matrix Calculated yet.")
-                    }
-                )
-                
-               
-                
-                # --- CASE C: SCAN TAB ---
-            } else if (!is.null(sub_lvl) && sub_lvl == "SCAN") {
-                has_matrix <- !is.null(cs_matrix_data())
-                has_results <- FALSE
-                try({ if(exists("scan_graph") && !is.null(scan_graph())) has_results <- TRUE }, silent=TRUE)
-                
-                panel_title <- "SCAN Status"
-                
-                if (!has_matrix) {
-                    panel_content <- tagList(div(style="text-align: center; color: #e74c3c;", icon("exclamation-triangle", "fa-3x"), h4("Matrix Missing")))
-                } else {
+                if (!is.null(sub_lvl) && sub_lvl == "Map") {
+                    panel_title <- "Map Filters"
                     panel_content <- tagList(
-                        p(class="text-muted", icon("info-circle"), " Configure parameters in the main window."),
-                        
-                        if(has_results) {
+                        p(class="text-muted", "Select species to highlight."),
+                        selectizeInput("map_spp_select", NULL, choices = spp_choices(), multiple = TRUE, options = list(placeholder = "Select species...")),
+                        actionButton("btn_map_reset", "Reset View", icon = icon("refresh"), size = "xs", style = "width: 100%; margin-top: 5px;")
+                    )
+                    
+                } else if (!is.null(sub_lvl) && sub_lvl == "Cs") {
+                    has_data <- !is.null(cs_matrix_data())
+                    panel_title <- "Matrix Inspector"
+                    panel_content <- tagList(
+                        if(has_data) {
                             tagList(
+                                div(style="margin-bottom: 10px;", p(strong("Dimensions:"), paste(nrow(cs_matrix_data()), "rows")), 
+                                    downloadButton("dl_cs_sidebar", "Download Matrix", class = "btn-success btn-xs", style = "width: 100%; margin-bottom: 15px;")),
                                 hr(),
-                                h4(style="color: #2c3e50;", icon("download"), " Download Results"),
-                                
-                                # --- THE 4 DEBUG BUTTONS ---
-                                downloadButton("dl_scan_groups", "1. Groups List (.csv)", class = "btn-success btn-xs", style = "width: 100%; margin-bottom: 5px; text-align: left;"),
-                                downloadButton("dl_scan_nodes", "2. Graph Nodes (.csv)", class = "btn-info btn-xs", style = "width: 100%; margin-bottom: 5px; text-align: left;"),
-                                downloadButton("dl_scan_edges", "3. Graph Edges (.csv)", class = "btn-info btn-xs", style = "width: 100%; margin-bottom: 5px; text-align: left;"),
-                                downloadButton("dl_scan_params", "4. Parameters (.csv)", class = "btn-default btn-xs", style = "width: 100%; margin-bottom: 15px; text-align: left;"),
-                                
-                                hr(),
-                                h4(style="color: #2c3e50;", icon("list-ol"), " Results Summary"),
-                                tableOutput("mini_scan_summary"),
-                                
-                                hr(),
-                                p(strong("Chorotypes List:")),
-                                div(style = "max-height: 300px; overflow-y: auto; border: 1px solid #ddd;",
-                                    tableOutput("scan_chorotype_list")
-                                )
+                                p(strong("Top Connected Pairs:")),
+                                tableOutput("mini_nodes_table")
                             )
                         } else {
-                            div(style="text-align: center;", p("Waiting for Analysis..."))
+                            p(class="text-warning", icon("exclamation-circle"), " No Matrix Calculated yet.")
                         }
                     )
-                }
-            }
-                
-                
-                # --- CASE C: SCAN TAB ---- 
-            # } else if (!is.null(sub_lvl) && sub_lvl == "SCAN") {
-            #     has_matrix <- !is.null(cs_matrix_data())
-            #     has_results <- FALSE
-            #     try({ if(exists("scan_graph") && !is.null(scan_graph())) has_results <- TRUE }, silent=TRUE)
-            #     
-            #     panel_title <- "SCAN Status"
-            #     
-            #     if (!has_matrix) {
-            #         panel_content <- tagList(div(style="text-align: center; color: #e74c3c;", icon("exclamation-triangle", "fa-3x"), h4("Matrix Missing")))
-            #     } else {
-            #         panel_content <- tagList(
-            #             p(class="text-muted", icon("info-circle"), " Configure parameters in the main window."),
-            #             
-            #             if(has_results) {
-            #                 tagList(
-            #                     hr(),
-            #                     # --- NEW: DOWNLOAD BUTTON BEFORE TABLE ---
-            #                     downloadButton("dl_chorotypes_sidebar", "Download Groups", 
-            #                                    class = "btn-success btn-xs", 
-            #                                    style = "width: 100%; margin-bottom: 15px;"),
-            #                     
-            #                     h4(style="color: #2c3e50;", icon("list-ol"), " Results Summary"),
-            #                     tableOutput("mini_scan_summary"),
-            #                     
-            #                     hr(),
-            #                     p(strong("Chorotypes List:")),
-            #                     div(style = "max-height: 300px; overflow-y: auto; border: 1px solid #ddd;",
-            #                         tableOutput("scan_chorotype_list")
-            #                     )
-            #                 )
-            #                 # --- CASE D: SCAN VIEWER (Visual Exploration) ---
-            #             } else if (!is.null(top_lvl) && top_lvl == "SCAN Viewer") {
-            #                 
-            #                 # Check for Analysis Results
-            #                 has_results <- FALSE
-            #                 try({ if(exists("scan_graph") && !is.null(scan_graph())) has_results <- TRUE }, silent=TRUE)
-            #                 
-            #                 panel_title <- "Viewer Controls"
-            #                 
-            #                 if(!has_results) {
-            #                     # 🔴 STOP: No Data
-            #                     panel_content <- tagList(
-            #                         div(style="text-align: center; color: #e74c3c; padding: 20px;",
-            #                             icon("ban", "fa-3x"),
-            #                             h4("No Analysis Found"),
-            #                             p("Please run the SCAN Analysis first.")
-            #                         )
-            #                     )
-            #                 } else {
-            #                     # 🟢 READY: Controls
-            #                     params <- scan_graph()[['parameters']]
-            #                     
-            #                     panel_content <- tagList(
-            #                         
-            #                         # 1. Threshold Slider
-            #                         div(style="background: #ecf0f1; padding: 10px; border-radius: 5px;",
-            #                             h5(icon("sliders-h"), " 1. Select Threshold (Ct)"),
-            #                             sliderInput("viewer_threshold", NULL, 
-            #                                         min = params$Min_Ct, max = params$Max_Ct, 
-            #                                         value = params$Min_Ct, step = params$Resolution)
-            #                         ),
-            #                         
-            #                         # 2. Group Selector (Dynamic)
-            #                         h5(icon("layer-group"), " 2. Select Chorotypes"),
-            #                         p(class="text-muted", style="font-size: 0.9em;", "Groups available at this Ct:"),
-            #                         uiOutput("viewer_group_selector"), # <--- Defined in Step 2
-            #                         
-            #                         
-            #                         # 3. Visual Settings
-            #                         h5(icon("paint-brush"), " 3. Styles"),
-            #                         sliderInput("viewer_alpha", "Map Opacity", 0, 1, 0.6, 0.1),
-            #                         checkboxInput("viewer_labels", "Show Node Labels", value = TRUE)
-            #                     )
-            #                 }
-            #             }
-            #         )
-            #     }
-            #     # --- CASE D: SCAN VIEWER (Visual Exploration) ---
-            #     # --- CASE D: SCAN VIEWER (Visual Exploration) ---
-             } else if (!is.null(top_lvl) && top_lvl == "SCAN Viewer") {
-                
-                # Check for Analysis Results
-                has_results <- FALSE
-                try({ if(exists("scan_graph") && !is.null(scan_graph())) has_results <- TRUE }, silent=TRUE)
-                
-                panel_title <- "Viewer Controls"
-                
-                if(!has_results) {
-                    # 🔴 STOP: No Data
-                    panel_content <- tagList(
-                        div(style="text-align: center; color: #e74c3c; padding: 20px;",
-                            icon("ban", "fa-3x"),
-                            h4("No Analysis Found"),
-                            p("Please run the SCAN Analysis first.")
-                        )
-                    )
-                } else {
-                    # 🟢 READY: Controls
-                    # Get parameters from the calculation to set slider limits
-                    params <- scan_graph()[['parameters']]
                     
-                    panel_content <- tagList(
-                        
-                        # 1. Threshold Slider
-                        div(style="background: #ecf0f1; padding: 10px; border-radius: 5px;",
-                            h5(icon("sliders-h"), " 1. Select Threshold (Ct)"),
-                            sliderInput("viewer_threshold", NULL, 
-                                        min = params$Min_Ct, max = params$Max_Ct, 
-                                        value = params$Min_Ct, step = params$Resolution)
-                        ),
-                        hr(),
-                        
-                        # 2. Group Selector (This comes from Section 10 logic)
-                        h5(icon("layer-group"), " 2. Select Chorotypes"),
-                        p(class="text-muted", style="font-size: 0.9em;", "Groups available at this Ct:"),
-                        uiOutput("viewer_group_selector"), 
-                        
-                        hr(),
-                        
-                        # 3. Visual Settings
-                        h5(icon("paint-brush"), " 3. Styles"),
-                        sliderInput("viewer_alpha", "Map Opacity", 0, 1, 0.6, 0.1),
-                        checkboxInput("viewer_labels", "Show Node Labels", value = TRUE)
-                    )
+                } else if (!is.null(sub_lvl) && sub_lvl == "SCAN") {
+                    panel_title <- "SCAN Results"
+                    # Check if results exist safely
+                    res_ready <- FALSE
+                    try({
+                        if(exists("scan_graph") && !is.null(scan_graph())) res_ready <- TRUE
+                    }, silent=TRUE)
+                    
+                    if(res_ready) {
+                        panel_content <- tagList(
+                            htmlOutput("scan_summary_text"),
+                            hr(style="margin: 5px 0;"),
+                            p(class = "text-muted", style="font-size: 12px;", "Species & Group Assignment:"),
+                            div(style = "max-height: 300px; overflow-y: auto; border: 1px solid #ddd;",
+                                tableOutput("scan_chorotype_list")
+                            )
+                        )
+                    } else {
+                        panel_content <- p(class="text-muted", "Run analysis to see results.")
+                    }
                 }
-            }
-        
-        # } else { if (!is.null(top_lvl) && top_lvl == "SCAN Viewer")
                 
+                # --- CASE B: SCAN VIEWER (Added for safety) ---
+            } else if (top_lvl == "SCAN Viewer") {
+                panel_title <- "Viewer Controls"
+                panel_content <- tagList(
+                    p("Viewer specific controls go here.")
+                )
+            }
+        }
+        
+        # 4. Final Return (MUST BE INSIDE renderUI)
+        # If panel_content is still NULL (no condition met), we return NULL (hidden panel)
+        if (is.null(panel_content)) return(NULL)
+        
+        # Construct the Floating Panel
+        absolutePanel(
+            id = "right_context_panel",
+            class = "panel panel-default",
+            top = 130, right = 20, width = 320,
+            draggable = TRUE, fixed = TRUE,
+            style = "z-index: 2000; opacity: 0.95;",
             
-            
-             })
-        
-        
-        
-        
-        
-        
-        # Render Sidebar HTML
-        if (!is.null(panel_content)) {
-            sidebar_style <- paste0("position: fixed; top: 50px; right: 0; bottom: 0; width: 280px; background-color: rgba(255, 255, 255, ", alpha, "); z-index: 1050; display: flex; flex-direction: column;")
-            div(style = sidebar_style,
-                div(style = "padding: 15px; background: rgba(44, 62, 80, 1.0); color: white;", h4(style="margin: 0;", icon("cogs"), " ", panel_title), tags$i(class="fa fa-times pull-right", style="cursor: pointer;", onclick = "$('#right_panel_container').hide()")),
-                div(style = "padding: 15px; overflow-y: auto; flex-grow: 1;", panel_content)
-            )
-        } else { return(NULL) }
-    })
-    
+            div(class = "panel-heading", style="cursor: move;", strong(panel_title)),
+            div(class = "panel-body", panel_content)
+        )
+    }) 
+    # ^-- Ensure this bracket closes the renderUI, NOT earlier!
     # --- 8. SMALL TABLES (Used in Right Panel) ----
     
     # E. Mini Table for Cs (Top 25)
@@ -720,7 +574,6 @@ server <- function(input, output, session) {
     
     # --- 10. SCAN VIEWER LOGIC (The Visual Engine) ---
     
-    # A. Dynamic Checkbox Generator (Feeds Right Panel)
     # A. Dynamic Checkbox Generator (DIRECT VERSION)
     output$viewer_group_selector_direct <- renderUI({
         req(scan_graph(), input$viewer_threshold)
@@ -911,44 +764,8 @@ server <- function(input, output, session) {
         }
     )
     
-    # # --- 10. DOWNLOADS ----
-    # 
-    # output$dl_map <- downloadHandler(
-    #     filename = function() { paste0("SCAN_Map_Export_", Sys.Date(), ".zip") },
-    #     content = function(file) {
-    #         req(map_data())
-    #         temp_dir <- tempdir()
-    #         file_base <- "scan_map_export"
-    #         sf::st_write(map_data(), file.path(temp_dir, paste0(file_base, ".shp")), delete_dsn = TRUE, quiet = TRUE)
-    #         zip_files <- list.files(temp_dir, pattern = file_base, full.names = TRUE)
-    #         utils::zip(zipfile = file, files = zip_files, flags = "-j")
-    #     }, contentType = "application/zip"
-    # )
-    # 
-    # # 2. Cs Matrix Download Handlers
-    # cs_h <- downloadHandler(
-    #     filename = function() { paste0("SCAN_Cs_", Sys.Date(), ".csv") },
-    #     content = function(file) { write.csv(cs_matrix_data(), file, row.names = FALSE) }
-    # )
-    # output$dl_cs <- cs_h         # Main window button
-    # output$dl_cs_sidebar <- cs_h # <--- NEW SIDEBAR BUTTON
-    # # output$dl_cs_float <- cs_h # (Deleted, no longer needed)
-    # 
-    # # 3. Chorotypes Download Handlers
-    # choro_h <- downloadHandler(
-    #     filename = function() { paste0("SCAN_Groups_", Sys.Date(), ".csv") },
-    #     content = function(file) { 
-    #         req(scan_graph())
-    #         # Save the list format or the summary format
-    #         df <- scan_graph()[['chorotypes']]
-    #         write.csv(df, file, row.names = FALSE) 
-    #     }
-    # )
-    # 
-    # 
-    # --- VIEWER ----
     
-    # --- IN SERVER.R ---
+    # --- 10. VIEWER ----
     
     # 1. GENERATE THE CHOROTYPE LIST (Based on Slider + Results)
     output$chorotype_selector_global <- renderUI({
@@ -1014,7 +831,6 @@ server <- function(input, output, session) {
         
         return(g_view)
     })
-    
     
     # GGPLOT MAP - ggplot_map()
     output$ggplot_map <- renderPlot({
@@ -1083,7 +899,7 @@ server <- function(input, output, session) {
     })
     
     
-    # --- 10. SCAN VIEWER LOGIC (The Visual Engine) ----
+    # --- 11. SCAN VIEWER LOGIC (The Visual Engine) ----
    
     # A. Dynamic Checkbox Generator (Feeds Right Panel)
     output$viewer_group_selector <- renderUI({
@@ -1240,104 +1056,5 @@ server <- function(input, output, session) {
 } # End Server
 
 
-
-# THRASH ----
-# # --- 7. RIGHT PANEL (CONTEXT AWARE) ---
-# 
-# output$right_panel_container <- renderUI({
-#     top_lvl <- input$top_nav
-#     sub_lvl <- input$analysis_subtabs
-#     alpha <- if(is.null(input$panel_opacity)) 0.85 else input$panel_opacity
-#     panel_content <- NULL
-#     panel_title <- ""
-#     
-#     if (!is.null(top_lvl) && top_lvl == "SCAN Analysis") {
-#         
-#         # --- MAP TAB ---
-#         if (!is.null(sub_lvl) && sub_lvl == "Map") {
-#             panel_title <- "Map Filters"
-#             panel_content <- tagList(
-#                 p(class="text-muted", "Select species to highlight."),
-#                 selectizeInput("map_spp_select", NULL, choices = spp_choices(), multiple = TRUE, options = list(placeholder = "Select species...")),
-#                 actionButton("btn_map_reset", "Reset View", icon = icon("refresh"), size = "xs", style = "width: 100%; margin-top: 5px;")
-#             )
-#             
-#             # --- CS TAB ---
-#         } else if (!is.null(sub_lvl) && sub_lvl == "Cs") {
-#             has_data <- !is.null(cs_matrix_data())
-#             panel_title <- "Matrix Inspector"
-#             
-#             panel_content <- tagList(
-#                 if(has_data) p(strong("Dimensions:"), paste(nrow(cs_matrix_data()), "rows")) 
-#                 else p(class="text-warning", icon("exclamation-circle"), " No Matrix Calculated yet."),
-#                 hr(),
-#                 p(strong("Top Connected Pairs:")),
-#                 tableOutput("mini_nodes_table") # This matches Renderer E below
-#             )
-#             
-#             # --- SCAN TAB ---
-#             # --- SCAN TAB (Status & Results) ---
-#         } else if (!is.null(sub_lvl) && sub_lvl == "SCAN") {
-#             
-#             # Check Dependencies
-#             has_matrix <- !is.null(cs_matrix_data())
-#             has_results <- FALSE
-#             try({ if(exists("scan_graph") && !is.null(scan_graph())) has_results <- TRUE }, silent=TRUE)
-#             
-#             panel_title <- "SCAN Status"
-#             
-#             if (!has_matrix) {
-#                 # 🔴 STOP: No Matrix
-#                 panel_content <- tagList(
-#                     div(style="text-align: center; color: #e74c3c; padding: 20px;", 
-#                         icon("exclamation-triangle", "fa-3x"), 
-#                         h4("Matrix Missing"),
-#                         p("Please calculate the Cs Index first.")
-#                     )
-#                 )
-#             } else {
-#                 # 🟡 READY
-#                 panel_content <- tagList(
-#                     p(class="text-muted", icon("info-circle"), " Configure parameters in the main window."),
-#                     hr(),
-#                     
-#                     # 🟢 SUCCESS: Results
-#                     if(has_results) {
-#                         tagList(
-#                             # 1. Summary Metrics
-#                             h4(style="color: #2c3e50; margin-bottom: 5px;", icon("chart-pie"), " Summary"),
-#                             tableOutput("mini_scan_summary"),
-#                             
-#                             hr(style="margin: 10px 0;"),
-#                             
-#                             # 2. Detailed List (Species | Group)
-#                             h4(style="color: #2c3e50; margin-bottom: 5px;", icon("list"), " Chorotypes List"),
-#                             p(class="text-muted", style="font-size: 0.85em;", "Scroll to view all assignments:"),
-#                             
-#                             # Scrollable Container for the list
-#                             div(style = "max-height: 400px; overflow-y: auto; border: 1px solid #ecf0f1; border-radius: 4px;",
-#                                 tableOutput("scan_chorotype_list")
-#                             )
-#                         )
-#                     } else {
-#                         div(style="text-align: center; color: #7f8c8d; padding-top: 20px;",
-#                             icon("hourglass-half", "fa-2x"),
-#                             p("Waiting for Analysis...")
-#                         )
-#                     }
-#                 )
-#             }
-#         }
-#     }
-#     
-#     # Render Sidebar HTML
-#     if (!is.null(panel_content)) {
-#         sidebar_style <- paste0("position: fixed; top: 50px; right: 0; bottom: 0; width: 280px; background-color: rgba(255, 255, 255, ", alpha, "); z-index: 1050; display: flex; flex-direction: column;")
-#         div(style = sidebar_style,
-#             div(style = "padding: 15px; background: rgba(44, 62, 80, 1.0); color: white;", h4(style="margin: 0;", icon("cogs"), " ", panel_title), tags$i(class="fa fa-times pull-right", style="cursor: pointer;", onclick = "$('#right_panel_container').hide()")),
-#             div(style = "padding: 15px; overflow-y: auto; flex-grow: 1;", panel_content)
-#         )
-#     } else { return(NULL) }
-# })
 
 
