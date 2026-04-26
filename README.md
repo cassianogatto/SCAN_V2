@@ -7,7 +7,7 @@ SCAN -> Biogeographical Units (Chorotypes) based on a Network Analysis of Spatia
 ```
 # This is SCAN V 2 # 
 
-Spatial [Congruence] Analysis to its essence in an extremely simple theoretical and conceptual background. No fancy models, statistics, or simulations, at least by now. Just a fine adjustment of direct and indirect Spatial Congruences (Cs) between species to find Chorotypes, or communities in Graph terminology. Yes, spatial patterns can be seem as direct network relationships.
+Spatial Congruence Analysis Network to its essence in an extremely simple theoretical and conceptual background. No fancy models, statistics, or simulations, at least by now. Just a fine adjustment of direct and indirect Spatial Congruences (Cs) between species to find Chorotypes, or communities in Graph terminology. Yes, spatial patterns can be seem as direct network relationships.
 
 <table>
   <tr>
@@ -25,24 +25,26 @@ Spatial [Congruence] Analysis to its essence in an extremely simple theoretical 
 In **Biogeography**, the field of biology that studies the spatial distribution of species and the evolution of their environments, a pervasive question remains: why do unrelated species often exhibit similar geographic distributions? The phenomenon of distributional congruence inspired Wallace — the father of Biogeography and co-founder of the Theory of Evolution by Natural Selection — as well as many subsequent researchers, to develop insights about the evolution and ecology of species and environments. Ideally, congruence should be among the primary criteria for any biogeographic analysis based on species distributions. Unfortunately, until now, most methods have not employed spatial congruence between distributions as an explicit and controllable parameter.
  
  <table>
-  <tr>
   <td>
-    <img height = "200" src="www/Psophia.jpg">
-  </td>
-  <td>
-    Psophia leucoptera <i>shares its distribution with other birds at the Inambari Endemic Area, SW Amazonia</i>
-  </td>
-  </tr>
+    <tr>
+        <img height = "300" src="www/Psophia.jpg">
+      </tr>
+      <tr>
+        Psophia leucoptera <i>shares its distribution with other birds at the Inambari Endemic Area, SW Amazonia</i>
+      </tr>
+    </td>
 </table>
 
-What about using congruence between species as the primary informative criterion? Such pairwise Network Relationships could allow the detection of: 
+<b>What about using congruence between species as the primary informative criterion? Such pairwise Network Relationships could allow the detection of: 
 
 <ul>
-  <li> 1) groups of species sharing distributions, but also potentially </li>
-  <li> 2) distinct but overlapping patterns with independent groups of species, while yet simultaneously describing</li> 
-  <li> 3) gradients of species distributions. SCAN does that! It addresses three analytical requirements not previously combined in any method, representing a significant advance in the biogeographical analysis of species distributions</li>
-  </ul>
-
+  <li> groups of species sharing distributions</li>
+  <li> distinct but overlapping patterns with independent groups of species</li> 
+  <li> gradients of species distributions</li>
+</ul>
+SCAN does that! It addresses three analytical requirements not previously combined in any available method, representing a significant advance in the biogeographical analysis of species distributions </b>
+<br>
+<br>
 <table>
   <tr>
   <td>
@@ -62,7 +64,7 @@ What about using congruence between species as the primary informative criterion
   </td>
   </tr>
 </table>
-
+<br>
 The algorithm applies objective criteria to assess the spatial properties of entities such as raw species distributions, though it can be extrapolated to analyze environments and geographic regions. Recognized patterns may range from highly congruent configurations, where species exhibit very similar distributions and are highly clustered in their graph spatial representations, to assemblages characterized by less overlap and relaxed network spatial connections. When species overlap or replace one another along transitional and ecological zones, these patterns are recognized as liner connections in a network. This flexibility enables the recognition of potentialy dynamic spatial processes and traces of differential responses to evolutionary or ecological filters, while facilitating comparisons between species and regions based on natural and objective criteria, including the number of species in groups, their level of congruence, the ratio of shared to total distributional area, and numerous metrics derived from network analytics.
 
 
