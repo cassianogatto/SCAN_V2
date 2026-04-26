@@ -46,17 +46,17 @@ SCAN does that! It addresses three analytical requirements not previously combin
 <br>
 <br>
 <table>
+  <td>
   <tr>
-  <td>
     <img height=80% src="www/Primate_chorotypes_graph.png">
-  </td>
-  <td>
-    <i>Examples of Primate Chorotypes across South and Central Americas at a Spatial Congruence Cs = 0.6 - their network structures are show in the right panel</i>
-  </td>
   </tr>
   <tr>
+    <i>Examples of Primate Chorotypes across South and Central Americas at a Spatial Congruence Cs = 0.6 - their network structures are show in the right panel</i>
+  </tr>
+  </td>
+  <tr>
     <td>
-      <img height=80% src="www/Primate_chorotypes_whole_network.png">
+      <img height=80% src="www/Primate_chorotypes_whole_network.png.jpg">
     </td>
   </tr>
   <td>
