@@ -7,7 +7,7 @@ SCAN -> Biogeographical Units (Chorotypes) based on a Network Analysis of Spatia
 ```
 # This is SCAN V 2 # 
 
-Spatial analysis to its essence in an extremely simple theoretical and conceptual background. No fancy models, statistics, or simulations, at least by now. Just a fine adjustment of direct and indirect Spatial Congruences (Cs) between species to find Chorotypes, or communities in Graph terminology. Yes, spatial patterns can be seem as direct network relationships.
+Spatial [Congruence] Analysis to its essence in an extremely simple theoretical and conceptual background. No fancy models, statistics, or simulations, at least by now. Just a fine adjustment of direct and indirect Spatial Congruences (Cs) between species to find Chorotypes, or communities in Graph terminology. Yes, spatial patterns can be seem as direct network relationships.
 
 <table>
   <tr>
