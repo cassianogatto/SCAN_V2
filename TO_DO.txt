@@ -21,3 +21,10 @@ Improvements
 10 Leaflet options of background maps
 
 11- May be viewer options to select chorotypes / species and Ct should be available in a sidebox for both viewer and leaftlet...
+
+12 - a TAB only for tables with selectable boxes!!
+
+13 - boxes for select all and select none
+
+14 - list of species selected / shown is not available in viewers
+
