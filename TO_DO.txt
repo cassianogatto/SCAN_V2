@@ -28,3 +28,9 @@ Improvements
 
 14 - list of species selected / shown is not available in viewers
 
+15 - Make leaflet maps selectable (chorotypes or species)
+
+16 - System diagnostics can be a rectretable box only shown while calculating Cs / SCAN / Loading Map
+
+17 - Settings Tab can have Cs settings for SCAN parameters and another one for CPU adjust settings
+
