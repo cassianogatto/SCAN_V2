@@ -1,0 +1,21 @@
+1 - LeafLet not showing selected chorotypes
+
+2- transparency and palette in viewer not responsive
+
+3 - Fix downloads (only map is OK)
+
+Improvements
+
+4 - a full tab only for Network view / analysis
+
+5 - Species / Chrotypes selection
+
+6 - atributte the same colors and names for chorotypes across distinct Ct settings
+
+7 - Open a notebook for annotations
+
+8 - In SCAN Viewer move settings to a box or remove the boxes and put the controls in a left column OR move viewer settings to the settings TAB above Download - Settings can also have Cs CPU settings etc
+
+9 - Tab for Leaflet full screen showing selected chorotypes (the same view settings used in SViewer tab?)
+
+10 Leaflet options of background maps
