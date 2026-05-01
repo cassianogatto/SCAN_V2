@@ -229,7 +229,7 @@ server <- function(input, output, session) {
             # --- VIEWER MODE: Colored by Chorotypes ---
             pal_fun <- colorFactor(palette = viewer_palette(), domain = display_shp$comps)
             # Safe check for transparency slider (defaults to 0.7 if not loaded yet)
-            alpha_val <- if(!is.null(input$alpha_global)) input$alpha_global else 0.7 
+            alpha_val <- if(!is.null(input$alpha_global)) input$alpha_global else 0.3 
             
             map_proxy %>% addPolygons(
                 data = display_shp,
@@ -350,6 +350,14 @@ server <- function(input, output, session) {
                 arrange(desc(Cs))
             
             cs_matrix_data(final_cs_clean)
+            
+            # --- AUTO-SYNC VIEWER ---
+            # Updates the viewer slider so its minimum and starting value match the calculated Cs
+            updateSliderInput(session, "viewer_threshold", 
+                              min = input$filter_Cs, 
+                              value = input$filter_Cs)
+            viewer_state$threshold <- input$filter_Cs # Update the memory bank too
+            
             showNotification("Calculation Finished! Check Right Panel.", type = "message", duration = 5)
         }
     })
