@@ -361,70 +361,69 @@ ui <- fillPage(
     ), # scan main conditional tab
     
   
-    # --- 6. SCAN Viewer ----
-    conditionalPanel(condition = "input.top_nav == 'SCAN Viewer'",
-                     
-                     absolutePanel(
-                       id = "scan_viewer_main",
-                       top = 70, left = "2%", right = "320px", # Right margin leaves space for the settings panel
-                       bottom = 20,
-                       style = "overflow-y: auto; z-index: 1000;", # Scrollable if content is tall
-                       div(class = "scroll-panel", 
-                           fluidPage(
-
-                               # 1. DIRECT CONTROLS ROW
-                               fluidRow(
-                                   box(width = 12, title = "Viewer Controls", status = "info", solidHeader = TRUE,
-                                       column(4, sliderInput("viewer_threshold", "1. Threshold (Ct):", 
-                                                          min = 0, max = 1, value = 0.5, step = 0.01)),
-                                       column(8, uiOutput("viewer_group_selector_direct")),
-                                   )
-                               ),
-                                   
-                               # Visual settings
-                               fluidRow(width = 12, title = "Visual Settings", status = "info", solidHeader = TRUE,
-                                    column(2, checkboxInput("show_minigraph", "Show Graph", value = TRUE)),
-                                    
-                                    column(4, sliderInput("alpha_global", "Transparency:", min=0, max=1, value=0.7, step=0.1)),
-                                           
-                                    column(4,selectInput("palette_global", "Palette:", choices = c("Set2", "Set1", "Paired", "Dark2", "RdYlBu"))),       
-                               ),
-                               
-                               # --- 3. Visual Tweaks ---
-                               
-                               # 2. PLOTS ROW
-                               fluidRow(
-                                   column(6, 
-                                          box(width=NULL, title="Static Map", status="primary", 
-                                              plotOutput("ggplot_map", height="500px"))
-                                   ),
-                                   column(6, 
-                                          # # Keeping the debugger for one last check
-                                          # box(width=NULL, title="System Diagnostics", status="warning", 
-                                          #     verbatimTextOutput("debug_viewer_console"))
-                                    
-                                         box(width=NULL, title="Static Map", status="primary",
-                                         plotOutput("graph_plot", height = "500px")
-                                         ),
-                                   )
-                               ),
-                               
-                               # 3. DATA TABLE ROW
-                               fluidRow(
-                                   column(12, 
-                                          box(width=NULL, title="Species List", status="success",  solidHeader = TRUE,
-                                              DT::DTOutput("view_species_table"))
-                                   )
-                               )
+  # --- 6. SCAN Viewer (Floating Widgets Architecture) ----
+  conditionalPanel(condition = "input.top_nav == 'SCAN Viewer'",
+                   
+                   # FLOATING WIDGET 1: Network Topology
+                   absolutePanel(
+                       id = "float_network",
+                       class = "panel panel-primary",
+                       top = 70, left = 500, width = 450, height = "auto",
+                       draggable = TRUE, fixed = TRUE,
+                       style = "z-index: 1050; box-shadow: 0 4px 15px rgba(0,0,0,0.2); background: rgba(255,255,255,0.95);",
+                       
+                       div(class = "panel-heading", style="cursor: move; padding: 8px 15px;", 
+                           tags$strong(icon("project-diagram"), " Network Topology"),
+                           # Minimize Button
+                           tags$button(type="button", class="pull-right btn btn-xs btn-primary", 
+                                       style="margin-top:-3px; background: transparent; border: none;",
+                                       onclick="$('#net_plot_body').slideToggle();", icon("minus"))
+                       ),
+                       div(id = "net_plot_body", class = "panel-body", style="padding: 5px; display: none;",
+                           plotOutput("graph_plot", height = "350px")
+                       )
+                   ),
+                   
+                   # FLOATING WIDGET 2: Static Map
+                   absolutePanel(
+                       id = "float_static_map",
+                       class = "panel panel-info",
+                       top = 70, left = 1000, width = 450, height = "auto",
+                       draggable = TRUE, fixed = TRUE,
+                       style = "z-index: 1050; box-shadow: 0 4px 15px rgba(0,0,0,0.2); background: rgba(255,255,255,0.95);",
+                       
+                       div(class = "panel-heading", style="cursor: move; padding: 8px 15px;", 
+                           tags$strong(icon("map"), " Static Map (ggplot)"),
+                           # Minimize Button
+                           tags$button(type="button", class="pull-right btn btn-xs btn-info", 
+                                       style="margin-top:-3px; background: transparent; border: none;",
+                                       onclick="$('#stat_plot_body').slideToggle();", icon("minus"))
+                       ),
+                       div(id = "stat_plot_body", class = "panel-body", style="padding: 5px; display: none;",
+                           plotOutput("ggplot_map", height = "350px")
+                       ), # <-- 1 may 2026
+                       
+                       # FLOATING WIDGET 3: Species Table
+                       absolutePanel(
+                           id = "float_species_list",
+                           class = "panel panel-success", # Green styling to distinguish from plots
+                           bottom = 20, left = 20, width = 350, height = "auto", # Anchored to the bottom, wide enough for both plots
+                           draggable = TRUE, fixed = TRUE,
+                           style = "z-index: 1050; box-shadow: 0 4px 15px rgba(0,0,0,0.2); background: rgba(255,255,255,0.95);",
+                           
+                           div(class = "panel-heading", style="cursor: move; padding: 8px 15px;", 
+                               tags$strong(icon("table"), " Species List (Selected Groups)"),
+                               # Minimize Button
+                               tags$button(type="button", class="pull-right btn btn-xs btn-success", 
+                                           style="margin-top:-3px; background: transparent; border: none;",
+                                           onclick="$('#species_table_body').slideToggle();", icon("minus"))
                            ),
-
-                           )# endds div class scroll panel
-                         )# ends absolute panel
-                       #)
-                     ), # conditional panel scan
-    
-  
-    
+                           div(id = "species_table_body", class = "panel-body", style="padding: 10px;",
+                               DT::DTOutput("view_species_table")
+                           )
+                       )
+                   )
+  ), # End SCAN Viewer Conditional Panel
   
     # --- 7. SCAN VIEWER CONTROLLER (Right Side) ----
     conditionalPanel(

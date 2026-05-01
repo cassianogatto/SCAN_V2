@@ -24,7 +24,7 @@ Improvements
 
 12 - a TAB only for tables with selectable boxes!!
 
-13 - boxes for select all and select none
+13 - boxes for select all and select none; when selecting among chorotypes, clean all others already selected or use shift or ctrl to select smartly (like explorer etc)
 
 14 - list of species selected / shown is not available in viewers
 
@@ -34,3 +34,48 @@ Improvements
 
 17 - Settings Tab can have Cs settings for SCAN parameters and another one for CPU adjust settings
 
+
+___
+
+18 - same Cs thres used in Cs calc may automatically be transposed to Ct viewer (step) or Ct viewer automatically reads only those Ct values in matrix (may be both, as user may prefer); Same for SCAN parameters...
+
+19 - create UPLOAD session to all previously created maps, Cs matrix, SCAN edges and nodes
+
+20 - LOAD and SAVE PROJECTS!!! with maps, Cs, graph... !!
+
+
+--
+
+
+geminni assessment 1may2026
+
+This is exactly what I needed. By placing the source code side-by-side, the evolution—and the fractures—between V1 (the older structure you referred to as V452) and V2 become crystal clear.
+
+You are making a massive architectural leap. You are moving from a Dashboard layout with static, sequential tabs (V1) to a Full-Page, Context-Aware App (V2). This is a professional-grade UX upgrade, but it explains why things are breaking: you are trying to rewire the engine while driving the car.
+
+Here is a developer-to-developer panoramic view of where we stand, the loose ends, and the strategy forward.
+1. Panoramic Contrast: V1 vs. V2
+Architecture & UX
+
+    V1 (The Old Reliable): Uses shinydashboard. It forces a linear workflow. You click "Map", you do map things. You click "Cs", you do Cs things. It's safe, but requires the user to constantly switch tabs to see results.
+
+    V2 (The Modern App): Uses fillPage and custom CSS. The map is always visible in the background. Tools float over the map in glass panels. This is brilliant for UX because the user never loses geographical context.
+
+State Management (The Core Issue)
+
+    V1: Relied heavily on reactiveValues (e.g., store_cs$data). This acted like a physical hard drive. You push a button, it saves to the drive, and the next tab reads from the drive.
+
+    V2: Uses reactiveVal() (e.g., map_data). This is more dynamic but more volatile. If an observer fails to write back to map_data(), the changes instantly vanish.
+
+The "Viewer" Philosophy
+
+    V1: Had dedicated "Viewer" tabs (map_view, static_view) separate from the "Analysis" tabs.
+
+    V2: Attempts to blend analysis and viewing. The "SCAN Viewer" in V2 tries to show the static plots and networks on top of the dynamic leaflet map.
+
+Issue,Symptom,The Root Cause in V2
+1. Leaflet not showing selected chorotypes,The map stays blank or shows the whole pool.,The connection between the Right Panel checkboxes (viewer_selected_groups) and the Leaflet observe block is broken. Leaflet isn't listening to the filter.
+2. Transparency/Palette not responsive,"Sliders move, map ignores them.","In V2, the inputs alpha_global and palette_global were moved into the viewer_map_data reactive, but the Leaflet map is still hardcoded to #18bc9c and 0.4 opacity."
+3. Fix Downloads,Only Map works; CSVs fail.,The UI calls for dl_cs but the Server provides dl_cs_sidebar. Mismatched IDs.
+4. Network View Tab,Missing a dedicated space.,"V2 crammed the network graph into the ""SCAN Viewer"" alongside the ggplot map, making both too small."
+6. Color Consistency,Colors change when Ct changes.,"The viewer_palette() reactive in V2 recalculates colors based only on the currently visible groups, not the global set of groups."

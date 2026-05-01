@@ -66,6 +66,23 @@ server <- function(input, output, session) {
     spp_choices    <- reactiveVal(NULL) # Stores the unique species list (Memory)
     
     
+    # --- 1.5 VIEWER MEMORY BANK ---
+    # Stores UI state so it doesn't reset when changing tabs
+    viewer_state <- reactiveValues(
+        threshold = 0.5,
+        groups = NULL,
+        alpha = 0.7,
+        palette = "Set2",
+        show_labels = TRUE
+    )
+    
+    # Listeners: Update the memory whenever the user touches a control
+    observeEvent(input$viewer_threshold, { viewer_state$threshold <- input$viewer_threshold })
+    observeEvent(input$viewer_selected_groups, { viewer_state$groups <- input$viewer_selected_groups }, ignoreNULL = FALSE)
+    observeEvent(input$alpha_global, { viewer_state$alpha <- input$alpha_global })
+    observeEvent(input$palette_global, { viewer_state$palette <- input$palette_global })
+    observeEvent(input$viewer_show_labels, { viewer_state$show_labels <- input$viewer_show_labels })
+    
     # --- 2. MAP MANAGEMENT (Upload & Transform) ----
     
     # A. Initial Load
@@ -176,26 +193,67 @@ server <- function(input, output, session) {
             setView(lng = -45, lat = -15, zoom = 4)
     })
     
-    # B. Map Updater
+    # B. Map Updater (Smart Context-Aware Version) - 1 may 26
     observe({
-        req(filtered_data())
+        req(filtered_data()) # Always require the base map to exist
         
-        # Prepare WGS84 copy for display
-        display_shp <- st_transform(filtered_data(), 4326)
+        # 1. Start by assuming we will show the standard Workshop map
+        display_shp <- filtered_data()
+        use_chorotypes <- FALSE
+        
+        # 2. Check if we are in the Viewer tab AND have analysis results ready
+        if (!is.null(input$top_nav) && input$top_nav == "SCAN Viewer") {
+            # We use tryCatch to safely attempt grabbing the Viewer Data without crashing
+            tryCatch({
+                if (!is.null(viewer_map_data()) && nrow(viewer_map_data()) > 0) {
+                    display_shp <- viewer_map_data()
+                    use_chorotypes <- TRUE
+                }
+            }, error = function(e) { NULL }) # Fail silently and keep the standard map
+        }
+        
+        # 3. Prepare WGS84 copy for display
+        if (st_crs(display_shp)$epsg != 4326) {
+            display_shp <- st_transform(display_shp, 4326)
+        }
         
         col_name <- if(isTRUE(input$ID_column)) input$colum_sp_map else "sp"
         if (!col_name %in% names(display_shp)) col_name <- names(display_shp)[1] 
         
         bb <- st_bbox(display_shp)
+        map_proxy <- leafletProxy("map") %>% clearShapes()
         
-        leafletProxy("map") %>%
-            clearShapes() %>%
-            addPolygons(data = display_shp, 
-                        color = "#18bc9c", 
-                        weight = 2, 
-                        fillOpacity = 0.4,
-                        label = as.character(display_shp[[col_name]])) %>%
-            flyToBounds(lng1 = bb[1], lat1 = bb[2], lng2 = bb[3], lat2 = bb[4])
+        # 4. Render the appropriate polygons
+        if (use_chorotypes && !is.null(viewer_palette())) {
+            
+            # --- VIEWER MODE: Colored by Chorotypes ---
+            pal_fun <- colorFactor(palette = viewer_palette(), domain = display_shp$comps)
+            # Safe check for transparency slider (defaults to 0.7 if not loaded yet)
+            alpha_val <- if(!is.null(input$alpha_global)) input$alpha_global else 0.7 
+            
+            map_proxy %>% addPolygons(
+                data = display_shp,
+                fillColor = ~pal_fun(comps),
+                fillOpacity = alpha_val,
+                color = "white", weight = 1, opacity = 1,
+                label = ~as.character(display_shp[[col_name]]),
+                popup = ~paste("<b>Species:</b>", display_shp[[col_name]], "<br><b>Group:</b>", comps)
+            )
+            
+        } else {
+            
+            # --- STANDARD MODE: Solid Green ---
+            map_proxy %>% addPolygons(
+                data = display_shp,
+                color = "#18bc9c",
+                weight = 2,
+                fillOpacity = 0.4,
+                label = ~as.character(display_shp[[col_name]])
+            )
+        }
+        
+        # Fly to bounds
+        map_proxy %>% flyToBounds(lng1 = bb[1], lat1 = bb[2], lng2 = bb[3], lat2 = bb[4])
     })
     
     # C. Reset Button
@@ -420,7 +478,7 @@ server <- function(input, output, session) {
     })
     
     
-    #0 --- 6. UI OUTPUTS & RENDERERS ----
+    # --- 6. UI OUTPUTS & RENDERERS ----
      
     # A. SCAN Preview Table (Main Window)
     output$table_download_preview <- DT::renderDT({
@@ -526,11 +584,28 @@ server <- function(input, output, session) {
                 }
                 
                 # --- CASE B: SCAN VIEWER (Added for safety) ---
+                # --- CASE B: SCAN VIEWER ---
             } else if (top_lvl == "SCAN Viewer") {
                 panel_title <- "Viewer Controls"
-                panel_content <- tagList(
-                    p("Viewer specific controls go here.")
-                )
+                
+                # Check if we have results to show
+                res_ready <- FALSE
+                try({ if(exists("scan_graph") && !is.null(scan_graph())) res_ready <- TRUE }, silent=TRUE)
+                
+                if(res_ready) {
+                    panel_content <- tagList(
+                        # ISOLATE prevents the infinite loop when the user moves sliders
+                        sliderInput("viewer_threshold", "1. Threshold (Ct):", min = 0, max = 1, value = isolate(viewer_state$threshold), step = 0.01),
+                        uiOutput("viewer_group_selector"), 
+                        hr(style = "margin-top: 10px; margin-bottom: 10px;"),
+                        tags$h5(icon("paint-brush"), "Visual Tweaks", style="margin-top: 0; color: #777;"),
+                        checkboxInput("viewer_show_labels", "Show Network Labels", value = isolate(viewer_state$show_labels)),
+                        sliderInput("alpha_global", "Map Transparency:", min=0, max=1, value = isolate(viewer_state$alpha), step=0.1),
+                        selectInput("palette_global", "Color Palette:", choices = c("Set2", "Set1", "Paired", "Dark2", "RdYlBu"), selected = isolate(viewer_state$palette))
+                    )
+                } else {
+                    panel_content <- p(class="text-danger", icon("exclamation-triangle"), " Run SCAN Analysis first.")
+                }
             }
         }
         
@@ -642,17 +717,23 @@ server <- function(input, output, session) {
         return(map_final)
     })
     
-    # D. Helper: Consistent Palette
+    # D. Helper: Consistent Palette (1 may 2026)
     viewer_palette <- reactive({
-        req(viewer_sub_graph())
+        req(viewer_sub_graph(), input$palette_global) # Wait for the UI dropdown
+        
         grps <- viewer_sub_graph() %>% activate(nodes) %>% as_tibble() %>% pull(comps) %>% unique() %>% sort()
         
         n_colors <- length(grps)
         if(n_colors < 3) n_colors <- 3
-        cols <- suppressWarnings(RColorBrewer::brewer.pal(n = n_colors, name = "Set1"))
         
-        if(length(grps) > length(cols)) cols <- colorRampPalette(cols)(length(grps))
-        else cols <- cols[1:length(grps)]
+        # Use the specific palette selected by the user in the UI
+        cols <- suppressWarnings(RColorBrewer::brewer.pal(n = n_colors, name = input$palette_global))
+        
+        if(length(grps) > length(cols)) {
+            cols <- colorRampPalette(cols)(length(grps))
+        } else {
+            cols <- cols[1:length(grps)]
+        }
         
         names(cols) <- grps
         return(cols)
@@ -925,11 +1006,21 @@ server <- function(input, output, session) {
         names(available_groups) <- display_names
         
         # 4. Create Checkboxes
+        # 4. Determine what should be selected based on Memory
+        # If memory has valid groups for this threshold, use them. Otherwise, default to the first one.
+        mem_groups <- isolate(viewer_state$groups)
+        safe_selection <- if (!is.null(mem_groups) && any(mem_groups %in% available_groups)) {
+            mem_groups[mem_groups %in% available_groups]
+        } else {
+            available_groups[1]
+        }
+        
+        # 5. Create Checkboxes
         checkboxGroupInput("viewer_selected_groups", NULL,
                            choices = available_groups,
-                           # Select the first one by default so the screen isn't empty
-                           selected = available_groups[1], 
-                           inline = TRUE)
+                           selected = safe_selection, 
+                           inline = TRUE
+        )
     })
     
     # B. Helper: The Sub-Graph (Filtered Network)
@@ -1047,7 +1138,7 @@ server <- function(input, output, session) {
             select(Species = sp, Group_ID = comps) %>%
             arrange(Group_ID, Species)
         
-    }, options = list(pageLength = 5, scrollX = TRUE))
+    }, options = list(pageLength = 20, scrollX = TRUE))
     
     
     
