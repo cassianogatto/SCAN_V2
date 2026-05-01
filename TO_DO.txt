@@ -19,3 +19,5 @@ Improvements
 9 - Tab for Leaflet full screen showing selected chorotypes (the same view settings used in SViewer tab?)
 
 10 Leaflet options of background maps
+
+11- May be viewer options to select chorotypes / species and Ct should be available in a sidebox for both viewer and leaftlet...
