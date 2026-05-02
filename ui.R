@@ -379,7 +379,7 @@ ui <- fillPage(
                                        style="margin-top:-3px; background: transparent; border: none;",
                                        onclick="$('#net_plot_body').slideToggle();", icon("minus"))
                        ),
-                       div(id = "net_plot_body", class = "panel-body", style="padding: 5px; display: none;",
+                       div(id = "net_plot_body", class = "panel-body", style="padding: 5px; ",
                            plotOutput("graph_plot", height = "350px")
                        )
                    ),
@@ -399,7 +399,7 @@ ui <- fillPage(
                                        style="margin-top:-3px; background: transparent; border: none;",
                                        onclick="$('#stat_plot_body').slideToggle();", icon("minus"))
                        ),
-                       div(id = "stat_plot_body", class = "panel-body", style="padding: 5px; display: none;",
+                       div(id = "stat_plot_body", class = "panel-body", style="padding: 5px; ",
                            plotOutput("ggplot_map", height = "350px")
                        ), # <-- 1 may 2026
                        
