@@ -16,6 +16,8 @@ ui <- fillPage(
     # --- 1. CSS & Header ----
     tags$style(type = "text/css", "
     html, body {width:100%; height:100%; margin:0; padding:0; overflow: hidden;}
+    
+    /* --- TOP NAV BAR --- */
     .top-nav-bar {
       position: absolute; top: 0; left: 0; width: 100%; height: 50px;
       background-color: rgba(44, 62, 80, 0.95); z-index: 2000; 
@@ -23,44 +25,38 @@ ui <- fillPage(
     }
     .nav-item { margin-right: 25px; cursor: pointer; font-weight: 500; }
     .nav-item:hover { color: #18bc9c; }
+
+    /* --- UNIFIED GLASS EFFECT --- */
+    /* Applies to the Scroll Panel (Settings/Workspace), Sidebars, and Floating Panels */
+    .scroll-panel, .left-sidebar, .panel-default, .panel-info, .panel-primary, .panel-success {
+      background-color: rgba(255, 255, 255, 0.7) !important; 
+      backdrop-filter: blur(10px); 
+      border: 1px solid rgba(255, 255, 255, 0.3) !important;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2) !important;
+      border-radius: 12px !important;
+    }
+
     .left-sidebar {
-      background-color: rgba(255, 255, 255, 0.9);
       height: calc(100vh - 70px);
-      overflow-y: auto; padding: 15px; border-radius: 0 15px 15px 0;
-      box-shadow: 5px 0 15px rgba(0,0,0,0.1); z-index: 1000;
+      overflow-y: auto; padding: 15px; border-radius: 0 15px 15px 0 !important;
+      z-index: 1000;
     }
+
     .scroll-panel {
-      max-height: 85vh; overflow-y: auto; background-color: rgba(255,255,255,0.9);
-      padding: 30px; border-radius: 10px; z-index: 1500;
+      max-height: 85vh; overflow-y: auto; padding: 30px; z-index: 1500;
     }
-    /* --- GLASS EFFECT FOR FLOATING PANELS --- */
+
+    /* --- CLEANER HEADINGS --- */
+    .panel-heading {
+      background-color: rgba(44, 62, 80, 0.05) !important;
+      color: #2c3e50 !important;
+      font-weight: bold;
+      border-bottom: 1px solid rgba(0,0,0,0.05) !important;
+    }
     
-    /* 1. Remove a cor sólida padrão e aplica transparência no container */
-    #cs_floating_box, #scan_floating_box {
-        background-color: rgba(255, 255, 255, 0.85) !important; /* Vidro Branco */
-        backdrop-filter: blur(5px); /* Desfoque chique (opcional, mas bonito) */
-        border: 1px solid rgba(0,0,0,0.1);
-        box-shadow: 0 4px 15px rgba(0,0,0,0.2) !important;
-    }
-
-    /* 2. Garante que o corpo do painel seja transparente para herdar o vidro */
-    #cs_floating_box .panel-body, #scan_floating_box .panel-body {
-        background-color: transparent !important;
-    }
-
-    /* 3. Ajusta os cabeçalhos para serem semi-transparentes também */
-    /* Azul (Info) */
-    #cs_floating_box .panel-heading {
-        background-color: rgba(58, 135, 173, 0.15) !important; 
-        color: #31708f;
-        border-bottom: 1px solid rgba(58, 135, 173, 0.2);
-    }
-    /* Verde (Success) */
-    #scan_floating_box .panel-heading {
-        background-color: rgba(60, 118, 61, 0.15) !important;
-        color: #3c763d;
-        border-bottom: 1px solid rgba(60, 118, 61, 0.2);
-    }
+    .panel-default, .panel-info, .panel-primary, .panel-success {
+    min-width: 280px; /* Prevents the box from getting too skinny */
+    }   
   "),
     
 
@@ -173,146 +169,130 @@ ui <- fillPage(
   
     # --- 5. Sidebar: SCAN Analysis Flow ----
     conditionalPanel(
-        condition = "input.top_nav == 'SCAN Analysis'",
-        absolutePanel(top = 60, left = 0, width = "25%",
-            div(class = "left-sidebar",
-                tabsetPanel(id = "analysis_subtabs", type = "pills",
-                    # --- SUB-TAB 1: MAP ---
-                    tabPanel("Map",
-                             br(),
-                             box(title = "1. Input Map", status = "primary", width = NULL, solidHeader = TRUE,
-                                 fileInput("filemap", "Upload Shapefile Components", 
-                                           multiple = TRUE, 
-                                           accept = c('.shp','.dbf','.sbn','.sbx','.shx',".prj")),
-                                 
-                                 # Diagnosis UI (Dynamic Warning)
-                                 uiOutput("map_diagnosis_ui")
-                             )
-                    ),
-                    
-                    # --- SUB-TAB 2: Cs ---
-                    tabPanel("Cs",
-                             br(),
-                             box(title = "1. Cs Index Configuration", status = "primary", width = NULL, solidHeader = TRUE,
-                                 numericInput("filter_Cs", "Minimum Cs Threshold (0 - 1)", value = 0.1, min = 0, max = 1, step = 0.05),
-                                 helpText("Only pairs above this value will be processed."),
-                                 
-                                 actionButton("calculate_Cs", "RUN Cs ANALYSIS", 
-                                              class = "btn-success btn-block", 
-                                              style = "font-weight: bold;", icon = icon("play-circle")),
-                                 
-                                 hr(),
-                                 tags$b("or upload a matrix:"),
-                                 fileInput("upload_cs_matrix", NULL, accept = ".csv", placeholder = "Upload .csv")
-                             )
-                    ),
-                    
-                    # --- SUB-TAB 3: SCAN ---
-                    tabPanel("SCAN", 
-                             br(),
-                             box(title="SCAN Engine", status = "primary", width=NULL, solidHeader = TRUE,
-                                 numericInput("resolution", "Resolution (Step):", value = 0.1, step = 0.01, min=0.01),
-                                 fluidRow(
-                                     column(6, numericInput("threshold_min", "Min Ct:", value = 0.2, step = 0.05)),
-                                     column(6, numericInput("threshold_max", "Max Ct:", value = 0.9, step = 0.05))
-                                 ),
-                                 actionButton("run_scan", "RUN SCAN ANALYSIS", 
-                                              class = "btn-danger btn-block", icon = icon("rocket"))
-                             )
-                    )
-                    
-                ),   # tabsetPanel (Map, Cs, SCAN) 2may2026
-                
-            )    # leftsidebar conditional
-            
-        )   # absolutePanel
-        
-    ), # scan main conditional tab
+      condition = "input.top_nav == 'SCAN Analysis'",
+      absolutePanel(top = 60, left = 0, width = "25%",
+                    div(class = "left-sidebar",
+                        # --- NEW CONSOLIDATED ANALYSIS CHECKLIST ---
+                        div(class = "analysis-checklist", style = "margin-top: 15px;",
+                            
+                            # --- BOX 1: MAP WORKSHOP ---
+                            box(title = "Step 1: Map Upload", status = "primary", width = NULL, solidHeader = TRUE,
+                                tags$small("Upload map geometry (all components):"),
+                                fileInput("filemap", NULL, multiple = TRUE, accept = c('.shp','.dbf','.shx',".prj")),
+                                uiOutput("map_diagnosis_ui")
+                            ),
+                            
+                            # --- BOX 2: SPATIAL CONGRUENCE (Cs) ---
+                            box(title = "Step 2: Calculate Cs Index", status = "primary", width = NULL, solidHeader = TRUE,
+                                numericInput("filter_Cs", "Minimum Cs Threshold (0 - 1)", value = 0.1, min = 0, max = 1, step = 0.05),
+                                
+                                # Warning Box
+                                div(style = "font-size: 0.9em; color: #856404; background-color: rgba(255, 243, 205, 0.7); border: 1px solid #ffeeba; padding: 10px; border-radius: 5px; margin-bottom: 15px;",
+                                    icon("exclamation-triangle"), 
+                                    "Note: Cutting the tail of lower values optimizes computation. Low Cs values can still be biogeographically informative."
+                                ),
+                                
+                                actionButton("calculate_Cs", "RUN Cs ANALYSIS", 
+                                             class = "btn-success btn-block", style = "font-weight: bold; font-size: 1.1em;", icon = icon("play-circle")),
+                                
+                                hr(),
+                                tags$b("Or Upload Cs Matrix (.csv):"),
+                                fileInput("upload_cs_matrix", NULL, accept = ".csv")
+                            ),
+                            
+                            # --- BOX 3: NETWORK ANALYSIS (SCAN) ---
+                            box(title="Step 3: Run SCAN Engine", status = "danger", width=NULL, solidHeader = TRUE,
+                                numericInput("resolution", "Resolution (Ct Step):", value = 0.1, step = 0.01, min=0.01),
+                                fluidRow(
+                                    column(6, numericInput("threshold_min", "Min Ct:", value = 0.2, step = 0.05)),
+                                    column(6, numericInput("threshold_max", "Max Ct:", value = 0.9, step = 0.05))
+                                ),
+                                actionButton("run_scan", "RUN SCAN ANALYSIS", 
+                                             class = "btn-danger btn-block", style = "font-weight: bold; font-size: 1.1em;", icon = icon("rocket"))
+                            )
+                        ) # End checklist div
+                    ) # End left-sidebar div
+      ) # End absolutePanel
+    ), # End SCAN Analysis conditionalPanel
     
-    # --- 6. SCAN Viewer (Floating Widgets Architecture) ----
+    
+    # --- 6. SCAN Viewer (Floating Widgets Architecture - DETACHED) ----
     conditionalPanel(condition = "input.top_nav == 'SCAN Viewer'",
                    
-                   # FLOATING WIDGET 1: Network Topology
+                   # FLOATING WIDGET 1: GRAPH PLOT
                    absolutePanel(
-                       id = "float_network",
-                       class = "panel panel-primary",
-                       top = 70, left = 500, width = 450, height = "auto",
+                       id = "float_network", class = "panel panel-primary",
+                       #top = 40, left = 500, width = 450, 
+                       top = "5%",   # 10% down from the top edge
+                       left = "30%",  # 30% in from the left edge
+                       width = "25%", # Box width is 25% of the screen width
                        draggable = TRUE, fixed = TRUE,
-                       style = "z-index: 1050; box-shadow: 0 4px 15px rgba(0,0,0,0.2); background: rgba(255,255,255,0.95);",
-                       
-                       div(class = "panel-heading", style="cursor: move; padding: 8px 15px;", 
+                       style = "z-index: 1050;",
+                       div(class = "panel-heading", style="cursor: move;", 
                            tags$strong(icon("project-diagram"), " Network Topology"),
-                           # Minimize Button
                            tags$button(type="button", class="pull-right btn btn-xs btn-primary", 
-                                       style="margin-top:-3px; background: transparent; border: none;",
                                        onclick="$('#net_plot_body').slideToggle();", icon("minus"))
                        ),
-                       div(id = "net_plot_body", class = "panel-body", style="padding: 5px; ",
-                           plotOutput("graph_plot", height = "350px")
-                       )
+                       div(id = "net_plot_body", class = "panel-body", 
+                           plotOutput("graph_plot", height = "350px"))
                    ),
                    
-                   # FLOATING WIDGET 2: Static Map
+                   # FLOATING WIDGET 2: GGMAP PLOT
                    absolutePanel(
-                       id = "float_static_map",
-                       class = "panel panel-info",
-                       top = 70, left = 1000, width = 450, height = "auto",
+                       id = "float_static_map", class = "panel panel-info",
+                       #top = 40, left = 1000, width = 450, 
+                       top = "5%",   # 10% down from the top edge
+                       left = "55%",  # 30% in from the left edge
+                       width = "25%", # Box width is 25% of the screen width
                        draggable = TRUE, fixed = TRUE,
-                       style = "z-index: 1050; box-shadow: 0 4px 15px rgba(0,0,0,0.2); background: rgba(255,255,255,0.95);",
-                       
-                       div(class = "panel-heading", style="cursor: move; padding: 8px 15px;", 
+                       style = "z-index: 1050;",
+                       div(class = "panel-heading", style="cursor: move;", 
                            tags$strong(icon("map"), " Static Map (ggplot)"),
-                           # Minimize Button
                            tags$button(type="button", class="pull-right btn btn-xs btn-info", 
-                                       style="margin-top:-3px; background: transparent; border: none;",
                                        onclick="$('#stat_plot_body').slideToggle();", icon("minus"))
                        ),
-                       div(id = "stat_plot_body", class = "panel-body", style="padding: 5px; ",
-                           plotOutput("ggplot_map", height = "350px")
-                       ), # <-- 1 may 2026
-                       
-                       # FLOATING WIDGET 3: Species Table
-                       absolutePanel(
-                           id = "float_species_list",
-                           class = "panel panel-success", # Green styling to distinguish from plots
-                           bottom = 20, left = 20, width = 350, height = "auto", # Anchored to the bottom, wide enough for both plots
-                           draggable = TRUE, fixed = TRUE,
-                           style = "z-index: 1050; box-shadow: 0 4px 15px rgba(0,0,0,0.2); background: rgba(255,255,255,0.95);",
-                           
-                           div(class = "panel-heading", style="cursor: move; padding: 8px 15px;", 
-                               tags$strong(icon("table"), " Species List (Selected Groups)"),
-                               # Minimize Button
-                               tags$button(type="button", class="pull-right btn btn-xs btn-success", 
-                                           style="margin-top:-3px; background: transparent; border: none;",
-                                           onclick="$('#species_table_body').slideToggle();", icon("minus"))
-                           ),
-                           div(id = "species_table_body", class = "panel-body", style="padding: 10px;",
-                               DT::DTOutput("view_species_table")
-                           )
+                       div(id = "stat_plot_body", class = "panel-body", 
+                           plotOutput("ggplot_map", height = "350px"))
+                   ), # COMMA HERE
+                   
+                   # FLOATING WIDGET 3: Species Table
+                   absolutePanel(
+                       id = "float_species_list", class = "panel panel-success",
+                       #bottom = 20, left = 20, width = 350, 
+                       bottom = "2%",   # 10% down from the top edge
+                       left = "2%",  # 30% in from the left edge
+                       width = "25%", # Box width is 25% of the screen width
+                       draggable = TRUE, fixed = TRUE,
+                       style = "z-index: 1060;", # Slightly higher index to stay on top
+                       div(class = "panel-heading", style="cursor: move;", 
+                           tags$strong(icon("table"), " Species List (Selected Groups)"),
+                           tags$button(type="button", class="pull-right btn btn-xs btn-success", 
+                                       onclick="$('#species_table_body').slideToggle();", icon("minus"))
+                       ),
+                       div(id = "species_table_body", class = "panel-body", style="padding: 10px;",
+                           DT::DTOutput("view_species_table")
                        )
                    )
     ), # End SCAN Viewer Conditional Panel
 
     # --- 7. SCAN VIEWER CONTROLLER (Right Side) ----
-    conditionalPanel(
-      condition = "input.top_nav == 'SCAN Viewer'",
-      
-      absolutePanel(
-        id = "scan_viewer_controls",
-        class = "panel panel-info", 
-        top = 70, right = 20, width = 280, # Fixed width, sitting on the right
-        style = "z-index: 1100; opacity: 0.95;", # Slightly above the main panel
-        draggable = TRUE,
-        
-        div(class = "panel-heading", tags$h4(icon("cogs"), " Viewer Settings")),
-        
-        # diagnostics here
-        # Keeping the debugger for one last check
-        box(width=NULL, title="System Diagnostics", status="warning",
-            verbatimTextOutput("debug_viewer_console"))
- # old settings in right panel
-      )
-    ),
+    # conditionalPanel(
+    #   condition = "input.top_nav == 'SCAN Viewer'",
+    #   
+    #   absolutePanel(
+    #     id = "scan_viewer_controls",
+    #     class = "panel panel-info", 
+    #     bottom = 10, right = 10, width = 300, 
+    #     style = "z-index: 500; opacity: 0.85;",
+    #     draggable = TRUE, fixed = TRUE, # collapsed = TRUE,
+    #     div(class = "panel-heading", tags$h4(icon("cogs"), "Info")),
+    #     
+    #     # diagnostics here
+    #     # Keeping the debugger for one last check
+    #     box( title="System Diagnostics", status="warning",
+    #         verbatimTextOutput("debug_viewer_console"))
+    #    )
+    # ),
   
     # --- PANEL: SETTINGS & FILES (Downloads) ----
   
@@ -394,68 +374,3 @@ ui <- fillPage(
     uiOutput("right_panel_container")
     
 )  # Ends ui fillPage # deleted
-
-# THRASH
-# --- FLOATING BOX: CS PREVIEW (Appears only on Cs Tab) ---
-# conditionalPanel(
-#   # Condition: User is on 'SCAN Analysis' -> 'Cs' tab AND data is available
-#   condition = "input.top_nav == 'SCAN Analysis' && input.analysis_subtabs == 'Cs' && output.cs_data_available == true",
-#   
-#   absolutePanel(
-#     id = "cs_floating_box",
-#     class = "panel panel-info",
-#     fixed = TRUE, draggable = TRUE,
-#     top = 130, right = 20, width = 300, height = "auto",
-#     style = "z-index: 2000;  box-shadow: 0 4px 8px rgba(0,0,0,0.3);",
-#     
-#     #div(class = "panel-heading", tags$h4("📊 Cs Results Preview", style="margin: 0; font-size: 16px;")),
-#     div(class = "panel-body", style = "max-height: 400px; overflow-y: auto; padding: 10px;",
-#         p(class = "text-muted", "Top strong connections:"),
-#         tableOutput("mini_nodes_table"), # Defined in server
-#         hr(),
-#         downloadButton("dl_cs_float", "Download Full Matrix", class = "btn-xs btn-primary btn-block")
-#     )
-#   )
-# ),
-
-
-# --- FLOATING BOX: SCAN RESULTS (Appears only on SCAN Tab) ---
-# conditionalPanel(
-#   # Condition: User is on 'SCAN Analysis' -> 'SCAN' tab AND results exist
-#   condition = "input.top_nav == 'SCAN Analysis' && input.analysis_subtabs == 'SCAN' && output.scan_results_ready == true",
-#   
-#   absolutePanel(
-#     id = "scan_floating_box",
-#     class = "panel panel-success", # Green style for Success/Results
-#     fixed = TRUE, draggable = TRUE,
-#     top = 130, right = 20, width = 320, height = "auto",
-#     style = "z-index: 2000;  box-shadow: 0 4px 8px rgba(0,0,0,0.3);",
-#     
-#     # --- Header ---
-#     div(class = "panel-heading", 
-#         tags$h4("🧬 SCAN Chorotypes", style="margin: 0; font-size: 16px;")
-#     ),
-#     
-#     # --- Body: List of Groups ---
-#     div(class = "panel-body", style = "padding: 10px;",
-#         
-#         # 1. Summary Text
-#         htmlOutput("scan_summary_text"),
-#         hr(style="margin: 5px 0;"),
-#         
-#         # 2. Scrollable List of Chorotypes
-#         p(class = "text-muted", style="font-size: 12px;", "Species & Group Assignment:"),
-#         div(style = "max-height: 300px; overflow-y: auto; border: 1px solid #ddd; background: white;",
-#             tableOutput("scan_chorotype_list")
-#         ),
-#         
-#         hr(),
-#         
-#         # 3. Quick Downloads
-#         div(class = "btn-group-vertical", style="width: 100%;",
-#             downloadButton("dl_chorotypes_float", "📥 Download List (.csv)", class = "btn-xs btn-success"),
-#             downloadButton("dl_edges_float", "📥 Download Graph Edges", class = "btn-xs btn-default")
-#         )
-#     )
-#   )
-# ),

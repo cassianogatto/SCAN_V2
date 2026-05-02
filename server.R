@@ -210,6 +210,8 @@ server <- function(input, output, session) {
                 if (!is.null(viewer_map_data()) && nrow(viewer_map_data()) > 0) {
                     display_shp <- viewer_map_data()
                     use_chorotypes <- TRUE
+                    # Force re-evaluation when visual defaults change
+                    req(input$alpha_global)
                 }
             }, error = function(e) { NULL }) # Fail silently and keep the standard map
         }
@@ -443,8 +445,10 @@ server <- function(input, output, session) {
         results[['graph_nodes']] <- g_full %>% activate(nodes) %>% as_tibble()
         results[['graph_edges']] <- g_full %>% activate(edges) %>% as_tibble()
         
-        # Save to the Master Memory Bank - 2may26
+        # Save to the Master Memory Bank
         scan_results(results) 
+        
+        # NEW: Restore notification after the eventReactive transition
         showNotification("SCAN Analysis Complete!", type = "message")
     })
     
@@ -454,48 +458,6 @@ server <- function(input, output, session) {
         req(scan_results())
         scan_results() 
     })
-    
-    # --- DEBUGGER: VIEWER DIAGNOSTICS ----
-    output$debug_viewer_console <- renderPrint({
-        cat("--- 1. NAVIGATION STATE ---\n")
-        cat("Top Nav (input$top_nav):      ", input$top_nav, "\n")
-        cat("Sub Nav (analysis_subtabs):   ", input$analysis_subtabs, "\n")
-        
-        cat("\n--- 2. DATA AVAILABILITY ---\n")
-        # Check if scan_graph exists and has data
-        has_graph <- FALSE
-        if(exists("scan_graph")) {
-            try({
-                res <- scan_graph()
-                if(!is.null(res)) {
-                    cat("SCAN Results:                 AVAILABLE\n")
-                    cat("Chorotypes Found:             ", nrow(res[['chorotypes']]), "\n")
-                    has_graph <- TRUE
-                } else {
-                    cat("SCAN Results:                 NULL\n")
-                }
-            })
-        } else {
-            cat("SCAN Results:                 NOT FOUND (Reactive doesn't exist)\n")
-        }
-        
-        cat("\n--- 3. RIGHT PANEL INPUTS ---\n")
-        cat("Threshold (input$viewer_threshold):      ", input$viewer_threshold, "\n")
-        cat("Selected Groups (input$viewer_selected_groups): ", paste(input$viewer_selected_groups, collapse=", "), "\n")
-        
-        cat("\n--- 4. INTERMEDIATE REACTIVES ---\n")
-        # Check if the helpers are calculating
-        if(has_graph && !is.null(input$viewer_threshold)) {
-            tryCatch({
-                sub <- viewer_sub_graph()
-                cat("Sub-Graph Nodes:              ", igraph::vcount(sub), "\n")
-                cat("Sub-Graph Edges:              ", igraph::ecount(sub), "\n")
-            }, error = function(e) cat("Sub-Graph Error:              ", e$message, "\n"))
-        } else {
-            cat("Sub-Graph:                    WAITING FOR INPUTS\n")
-        }
-    })
-    
     
     # --- 6. UI OUTPUTS & RENDERERS ----
      
@@ -602,10 +564,9 @@ server <- function(input, output, session) {
                     }
                 }
                 
-                # --- CASE B: SCAN VIEWER (Added for safety) ---
-                # --- CASE B: SCAN VIEWER ---
+                # --- CASE B: SCAN VIEWER ----
             } else if (top_lvl == "SCAN Viewer") {
-                panel_title <- "Viewer Controls"
+                panel_title <- "Chorotype Selection"
                 
                 # Check if we have results to show
                 res_ready <- FALSE
@@ -613,8 +574,11 @@ server <- function(input, output, session) {
                 
                 if(res_ready) {
                     panel_content <- tagList(
-                        # ISOLATE prevents the infinite loop when the user moves sliders
-                        sliderInput("viewer_threshold", "1. Threshold (Ct):", min = 0, max = 1, value = isolate(viewer_state$threshold), step = 0.01),
+                        
+                        # Ct threshold slidebar ---
+                        sliderInput("viewer_threshold", "1. Threshold (Ct):", 
+                            min = 0, max = 1, 
+                            value = isolate(viewer_state$threshold), step = 0.1),
                         
                         # --- NEW: SELECTION CONTROLS ---
                         div(style = "margin-bottom: 5px; margin-top: -10px;",
@@ -897,22 +861,83 @@ server <- function(input, output, session) {
         })
     })    
     
-    # --- DYNAMIC MAP DIAGNOSIS ---- 2may2026
+    # --- DYNAMIC MAP DIAGNOSIS 2may2026 ----
+    # Provides feedback directly inside the Analysis sidebar Box 1
     output$map_diagnosis_ui <- renderUI({
+        # If no map is loaded, show a bright warning
         if (is.null(map_data())) {
-            return(wellPanel(style = "border: 1px solid red; background: #fff5f5;",
-                             p(style = "color: red;", icon("exclamation-triangle"), " Warning: No map loaded!")))
+            return(wellPanel(style = "border: 1px solid red; background: rgba(255, 245, 245, 0.8); margin-top: 10px;",
+                             p(style = "color: red; margin: 0; font-weight: bold;", 
+                               icon("exclamation-triangle"), " Waiting for geometry upload...")))
         }
         
-        wellPanel(style = "background: #f8f9fa; padding: 10px;",
-                  tags$strong("Map Diagnosis:"),
-                  tags$ul(
-                      tags$li("Species found:", length(spp_choices())),
-                      tags$li("Original CRS:", st_crs(map_data())$input),
-                      tags$li("Status: Ready for Cs Analysis")
+        # If map is loaded, show a diagnosis summary
+        wellPanel(style = "background: rgba(248, 249, 250, 0.7); padding: 10px; margin-top: 10px; border-radius: 8px;",
+                  tags$strong("Current Map Office:"),
+                  tags$ul(style = "margin-bottom: 0;",
+                          tags$li("Species found:", tags$span(style="color: #18bc9c;", length(spp_choices()))),
+                          tags$li("CRS (input):", tags$span(style="color: #3498db;", st_crs(map_data())$input)),
+                          tags$li("Status: Ready")
                   )
         )
     })
+    
+    # --- SYNC VIEWER STEP WITH SCAN RESOLUTION ----
+    observeEvent(input$resolution, {
+        # Ensure the resolution is a valid number before updating
+        req(input$resolution)
+        
+        updateSliderInput(session, "viewer_threshold", 
+                          step = input$resolution)
+        
+        # Optional: Log it so you know it's working
+        # print(paste("Viewer Step updated to:", input$resolution))
+    })
+    
+    # --- DEBUGGER: VIEWER DIAGNOSTICS --- removed
+    # output$debug_viewer_console <- renderPrint({
+    #     cat("--- 1. NAVIGATION STATE ---\n")
+    #     cat("Top Nav (input$top_nav):      ", input$top_nav, "\n")
+    #     cat("Sub Nav (analysis_subtabs):   ", input$analysis_subtabs, "\n")
+    #     
+    #     cat("\n--- 1. DATA AVAILABILITY ---\n")
+    #     # Check if scan_graph exists and has data
+    #     has_graph <- FALSE
+    #     if(exists("scan_graph")) {
+    #         try({
+    #             res <- scan_graph()
+    #             if(!is.null(res)) {
+    #                 cat("SCAN Results:                 AVAILABLE\n")
+    #                 cat("Chorotypes Found:             ", nrow(res[['chorotypes']]), "\n")
+    #                 has_graph <- TRUE
+    #             } else {
+    #                 cat("SCAN Results:                 NULL\n")
+    #             }
+    #         })
+    #     } else {
+    #         cat("SCAN Results:                 NOT FOUND (Reactive doesn't exist)\n")
+    #     }
+    #     
+    #     cat("\n--- 2. RIGHT PANEL INPUTS ---\n")
+    #     cat("Threshold (input$viewer_threshold):      ", input$viewer_threshold, "\n")
+    #     cat("Selected Groups (input$viewer_selected_groups): ", paste(input$viewer_selected_groups, collapse=", "), "\n")
+    #     
+    #     cat("\n--- 4. INTERMEDIATE REACTIVES ---\n")
+    #     # Check if the helpers are calculating
+    #     if(has_graph && !is.null(input$viewer_threshold)) {
+    #         tryCatch({
+    #             sub <- viewer_sub_graph()
+    #             cat("Sub-Graph Nodes:              ", igraph::vcount(sub), "\n")
+    #             cat("Sub-Graph Edges:              ", igraph::ecount(sub), "\n")
+    #         }, error = function(e) cat("Sub-Graph Error:              ", e$message, "\n"))
+    #     } else {
+    #         cat("Sub-Graph:                    WAITING FOR INPUTS\n")
+    #     }
+    # })
+    # 
+    
+    
+    
     
 } # End Server
 
