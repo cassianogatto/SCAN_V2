@@ -135,7 +135,7 @@ ui <- fillPage(
         )
     ),
     
-  # --- 4.5 NEW TAB: WORKSPACE MANAGER ---
+    # --- 4.5 NEW TAB: WORKSPACE MANAGER ----
   conditionalPanel(
       condition = "input.top_nav == 'Workspace'",
       absolutePanel(
@@ -177,235 +177,60 @@ ui <- fillPage(
         absolutePanel(top = 60, left = 0, width = "25%",
             div(class = "left-sidebar",
                 tabsetPanel(id = "analysis_subtabs", type = "pills",
-                    # MAP input ----
+                    # --- SUB-TAB 1: MAP ---
                     tabPanel("Map",
-                           br(),
-                           box(title = "1. Input Map", status = "primary", width = NULL, solidHeader = T,
-                               tags$p("Upload .shp + .shx + .dbf + .prj simultaneously:"),
-                               fileInput("filemap", "Choose Shapefile components", 
-                                         multiple = TRUE, 
-                                         accept = c('.shp','.dbf','.sbn','.sbx','.shx',".prj")),
-                             
-                               
-                           ),
-                           
-                           # Map Workshop ---
-                           box(title = "2. Map Workshop", status = "primary", width = NULL, solidHeader = T,
-                               textOutput("map_shp_names"),
-                               # check here if column names are ok if ok we dont need the following queue
-                               checkboxInput("ID_column", "Custom ID Column?", F),
-                               conditionalPanel("input.ID_column == true",
-                                                textInput("colum_sp_map", "Column name:", "sp")),
-                               hr(),
-                               
-                               # check here if there are invalid geometries
-                               checkboxInput("fix_invalid", "Fix Geometries (st_make_valid)?", F),
-                               hr(),
-                               
-                               # --- CRS / PROJECTION SETTINGS ---
-                               tags$hr(),
-                               tags$h4("Map Projection Settings"),
-                               
-                               # 3. Dynamic Text Output to confirm current CRS
-                               tags$br(),
-                               tags$strong("Current CRS:"),
-                               textOutput("map_crs_info", inline = TRUE),
-                               
-                               # --- MAP CONFIGURATION (Sidebar) ---
-                               
-                               tags$hr(),
-                               
-                               # A. PROJECTION SETTINGS
-                               checkboxInput("modify_crs", "Enable Custom Projection", value = FALSE),
-                               conditionalPanel(
-                                   condition = "input.modify_crs == true",
-                                   textInput("map_projection", "EPSG or Proj4 String:", value = "102033"),
-                                   helpText("Ex: 102033 (Albers SA), 31982 (SIRGAS 2000), 3857 (Mercator Projected - metric version of WGS84).")
-                               ),
-                               
-                               tags$hr(style="border-top: 1px dashed #777;"),
-                               
-                               # B. BUFFERING SETTINGS (Moved from Cs Tab)
-                               checkboxInput("use_buffer_map", "Enable Geometry Buffering?", value = FALSE),
-                               conditionalPanel(
-                                   condition = "input.use_buffer_map == true",
-                                   wellPanel(
-                                       style = "background: #f5f5f5; color: black; padding: 10px;",
-                                       
-                                       # Buffer Distance
-                                       numericInput("buffer_dist", "Buffer Dist (metric/deg):", value = 0),
-                                       helpText("Positive = Expand, Negative = Shrink"),
-                                       
-                                       # Quartile Selection
-                                       tags$label("Apply to Size Class (Quartiles):"),
-                                       checkboxGroupInput("quantiles_to_buffer", NULL, 
-                                                          choices = c("Q1 (Smallest)"=1, "Q2"=2, "Q3"=3, "Q4 (Largest)"=4), 
-                                                          selected = c(1), inline = TRUE),
-                                       
-                                       tags$small(icon("exclamation-triangle"), "Warning: Alters polygon areas! Check your projection: if metric use meters, if geographic use degrees.")
-                                   )
-                               ),
-                               
-                               # C. THE MASTER TRIGGER (Controls A & B)
-                               actionButton("apply_mods", "APPLY MAP SETTINGS", 
-                                            class = "btn-primary", 
-                                            icon = icon("cogs"), 
-                                            style = "width: 100%; margin-top: 15px; font-weight: bold; font-size: 1.1em;"),
-                               
-                               
-                           ),
-                    ),
-                          
-                    # ... inside tabsetPanel ...
-                    
-                    # Cs Index Tab ----
-                    tabPanel("Cs",
-                             
-                             # --- COLUMN 1: The "What" (Formulas & Thresholds) ---
-                             fluidPage(
-                                    box(title = "1. Index Configuration", status = "primary", width = NULL, solidHeader = TRUE,
-                                        tags$h4("Spatial Congruence Settings"),
-                                        
-                                        # 1.1 Min CS
-                                        numericInput("filter_Cs", "Minimum Cs Threshold (0 - 1)", value = 0.1, min = 0, max = 1, step = 0.05),
-                                        
-                                        # Warning Box
-                                        div(style = "font-size: 0.9em; color: #856404; background-color: #fff3cd; border: 1px solid #ffeeba; padding: 10px; border-radius: 5px; margin-bottom: 15px;",
-                                            icon("exclamation-triangle"), 
-                                            "Note: Cutting the tail of lower values optimizes computation. However, low Cs values can still be biogeographically informative depending on the spatial structure."
-                                        ),
-                                        
-                                        # Cs BUTTON 
-                                        actionButton("calculate_Cs", "RUN CS ANALYSIS", 
-                                                     class = "btn-success", 
-                                                     style = "width: 100%; font-weight: bold; font-size: 1.2em; margin-top: 10px;", 
-                                                     icon = icon("play-circle")
-                                        ),
-                                        
-                                        tags$b("or upload a Cs matrix below..."),
-                                        
-                                        # --- 3 Update Cs Index table ---
-                                        
-                                        box(title = "2. Upload Cs Index Table", status = "info", width = NULL, solidHeader = TRUE, 
-                                            tags$small("Note: Uploading a file overrides the calculation settings above."),
-                                            fileInput("upload_cs_matrix", "Upload pre-calculated Cs Matrix (.csv)",
-                                                      accept = c("text/csv", "text/comma-separated-values", ".csv"),
-                                                      placeholder = "No file selected"),
-                                            
-                                        ),
-                                        
-                                        # Formulas
-                                        box(title = "3. Spatial Congruence Formula", status = "info", width = NULL, solidHeader = TRUE, 
-                                            checkboxInput("use_alternative_index", "Use Custom Formula?", value = FALSE),
-                                            conditionalPanel(
-                                                condition = "input.use_alternative_index == true",
-                                                wellPanel(
-                                                    style = "background: #fcfcfc; padding: 10px;",
-                                                    tags$small("Available variables: area_overlap, area_sp1, area_sp2"),
-                                                    textInput("cs_similarity_index", "Formula:", value = '(area_overlap / area_sp1) * (area_overlap / area_sp2)'),
-                                                    tags$small(em("Example Jaccard: area_overlap / (area_sp1 + area_sp2 - area_overlap)"))
-                                                )
-                                            )
-                                        ),
-                                        
-                                        box(title = "4. Engine & Performance", status = "warning", width = NULL, solidHeader = TRUE,
-                                            
-                                            # Processing Engine (Library)
-                                            tags$label("1. Calculation Engine:"),
-                                            radioButtons("calc_engine", NULL,
-                                                         choices = c("sf (Standard Vector)" = "engine_sf", 
-                                                                     "terra (High Performance)" = "engine_terra"), 
-                                                         selected = "engine_sf", inline = TRUE),
-                                            
-                                            # Processing Mode (Serial vs Parallel)
-                                            tags$label("2. Processing Core Mode:"),
-                                            radioButtons("calc_mode", NULL, 
-                                                         choices = c("Serial (Single Core)" = "mode_serial", 
-                                                                     "Parallel (Multi-Core)" = "mode_parallel"), 
-                                                         selected = "mode_serial", inline = TRUE),
-                                            
-                                            # Conditional: Parallel Settings
-                                            conditionalPanel(
-                                                condition = "input.calc_mode == 'mode_parallel'",
-                                                sliderInput("num_cores", "Number of Cores:", min = 2, max = parallel::detectCores()-1, value = 2, step = 1),
-                                                tags$small(style="color:gray", icon("info-circle"), " Parallel processing requires more RAM.")
-                                            ),
-                                            
-                                            # 2.3 Memory Strategy (Direct vs Chunks)
-                                            tags$label("3. Memory Strategy:"),
-                                            radioButtons("memory_strategy", NULL, 
-                                                         choices = c("Load All (Fastest, High RAM)" = "mem_all", 
-                                                                     "Chunked Processing (Low RAM)" = "mem_chunk"), 
-                                                         selected = "mem_all", inline = FALSE),
-                                            
-                                            # Conditional: Chunk Settings
-                                            conditionalPanel(
-                                                condition = "input.memory_strategy == 'mem_chunk'",
-                                                div(style="display: flex; align-items: center; gap: 10px;",
-                                                    numericInput("chunk_size", "Batch Size (spp):", value = 20, min = 5, width = "150px"),
-                                                    tags$small("Smaller batches = Lower RAM usage.")
-                                                )
-                                            ),
-                                     ),   
-                                        
-                                        
-                                    )
+                             br(),
+                             box(title = "1. Input Map", status = "primary", width = NULL, solidHeader = TRUE,
+                                 fileInput("filemap", "Upload Shapefile Components", 
+                                           multiple = TRUE, 
+                                           accept = c('.shp','.dbf','.sbn','.sbx','.shx',".prj")),
+                                 
+                                 # Diagnosis UI (Dynamic Warning)
+                                 uiOutput("map_diagnosis_ui")
                              )
                     ),
                     
-                    
-                    
-                    
-                    
-                    
-                    
-                    # SCAN ----
-                    tabPanel("SCAN", 
-                        
-                        box(title="SCAN Engine", width=NULL, "SCAN Execution here", 
-                            status = "primary",  solidHeader = T,
-                            
-                            # BOX 3.1: Configuração SCAN
-                            box(width = NULL, title = "1. Algorithm Configuration", status = "danger", solidHeader = TRUE,
-                                fluidRow(
-                                    column(4, numericInput("resolution", "Resolution (Step):", value = 0.1, step = 0.01)),
-                                    column(4, numericInput("threshold_min", "Min Threshold:", value = 0.2, step = 0.05)),
-                                    column(4, numericInput("threshold_max", "Max Threshold:", value = 0.9, step = 0.05)),
-                                    column(4, 
-                                           checkboxInput("filter_diameter", "Limit Diameter?", value = TRUE),
-                                           conditionalPanel("input.filter_diameter == true",
-                                                            numericInput("max_diameter", "Max Diameter:", value = 15)
-                                           )
-                                    ),
-                                    column(4, checkboxInput("overlap", "Require Full Overlap (Clique)?", value = TRUE))
-                                ),
-                                
-                                actionButton("run_scan", "RUN SCAN ANALYSIS", class = "btn-danger", icon = icon("rocket"), width = "200px")
-                            ),
-                            
-                            # Results Box
-                            box(width = NULL, title = "2. Results & Downloads", status = "danger",
-                                tags$h4(
-                                    tableOutput("scan_summary_text")),
-                                tags$h4("Preview Data:"),
-                                DT::DTOutput('table_download_preview'),
-                                tags$br(),
-                                tags$h4("Chorotypes List:"),
-                                tableOutput("scan_chorotypes")
-                            )
-                            
-                        ),
-                            
+                    # --- SUB-TAB 2: Cs ---
+                    tabPanel("Cs",
+                             br(),
+                             box(title = "1. Cs Index Configuration", status = "primary", width = NULL, solidHeader = TRUE,
+                                 numericInput("filter_Cs", "Minimum Cs Threshold (0 - 1)", value = 0.1, min = 0, max = 1, step = 0.05),
+                                 helpText("Only pairs above this value will be processed."),
+                                 
+                                 actionButton("calculate_Cs", "RUN Cs ANALYSIS", 
+                                              class = "btn-success btn-block", 
+                                              style = "font-weight: bold;", icon = icon("play-circle")),
+                                 
+                                 hr(),
+                                 tags$b("or upload a matrix:"),
+                                 fileInput("upload_cs_matrix", NULL, accept = ".csv", placeholder = "Upload .csv")
+                             )
                     ),
-                        
-                ),   # tabsetPanel (Map, Cs, SCAN)
+                    
+                    # --- SUB-TAB 3: SCAN ---
+                    tabPanel("SCAN", 
+                             br(),
+                             box(title="SCAN Engine", status = "primary", width=NULL, solidHeader = TRUE,
+                                 numericInput("resolution", "Resolution (Step):", value = 0.1, step = 0.01, min=0.01),
+                                 fluidRow(
+                                     column(6, numericInput("threshold_min", "Min Ct:", value = 0.2, step = 0.05)),
+                                     column(6, numericInput("threshold_max", "Max Ct:", value = 0.9, step = 0.05))
+                                 ),
+                                 actionButton("run_scan", "RUN SCAN ANALYSIS", 
+                                              class = "btn-danger btn-block", icon = icon("rocket"))
+                             )
+                    )
+                    
+                ),   # tabsetPanel (Map, Cs, SCAN) 2may2026
+                
             )    # leftsidebar conditional
+            
         )   # absolutePanel
+        
     ), # scan main conditional tab
     
-  
-  # --- 6. SCAN Viewer (Floating Widgets Architecture) ----
-  conditionalPanel(condition = "input.top_nav == 'SCAN Viewer'",
+    # --- 6. SCAN Viewer (Floating Widgets Architecture) ----
+    conditionalPanel(condition = "input.top_nav == 'SCAN Viewer'",
                    
                    # FLOATING WIDGET 1: Network Topology
                    absolutePanel(
@@ -466,8 +291,8 @@ ui <- fillPage(
                            )
                        )
                    )
-  ), # End SCAN Viewer Conditional Panel
-  
+    ), # End SCAN Viewer Conditional Panel
+
     # --- 7. SCAN VIEWER CONTROLLER (Right Side) ----
     conditionalPanel(
       condition = "input.top_nav == 'SCAN Viewer'",
@@ -491,51 +316,77 @@ ui <- fillPage(
   
     # --- PANEL: SETTINGS & FILES (Downloads) ----
   
-   conditionalPanel(
-    condition = "input.top_nav == 'Settings&Files'",
-    absolutePanel(
-      top = 70, left = "15%", right = "15%",
-      div(class = "scroll-panel",
-          h2(icon("download"), "Data Export & Downloads"),
-          p("Download processed maps, calculated matrices, and analysis results."),
-          hr(),
-          
-          # --- SECTION 1: PROCESSED INPUTS ---
-          box(title = "1. Processed Inputs", status = "info", width = NULL, solidHeader = TRUE,
-              fluidRow(
-                column(6, 
-                       h4("Geospatial Data"),
-                       p("The reprojected/buffered map currently in memory."),
-                       downloadButton("dl_map", "Download Map Shapefile (.zip)", class = "btn-primary btn-block")
-                ),
-                column(6, 
-                       h4("Calculated Matrix"),
-                       p("The Cs matrix currently loaded/calculated."),
-                       downloadButton("dl_cs", "Download Cs Matrix (.csv)", class = "btn-primary btn-block")
-                )
-              )
-          ),
-          
-          # --- SECTION 2: SCAN RESULTS ---
-          box(title = "2. SCAN Analysis Results", status = "success", width = NULL, solidHeader = TRUE,
-              p("Results based on the current 'Cs Threshold' defined in the SCAN tab."),
-              fluidRow(
-                column(4, 
-                       downloadButton("dl_chorotypes", "📥 Chorotypes (Groups)", class = "btn-success btn-block")
-                ),
-                column(4, 
-                       downloadButton("dl_edges", "📥 Graph Edges", class = "btn-default btn-block")
-                ),
-                column(4, 
-                       downloadButton("dl_nodes", "📥 Graph Nodes", class = "btn-default btn-block")
-                )
-              ),
-              br(),
-              tags$small(icon("info-circle"), " Note: You must run the SCAN analysis first for these to be available.")
-          )
-      )
-    )
-  ),
+     conditionalPanel(
+         condition = "input.top_nav == 'Settings&Files'",
+         absolutePanel(
+             top = 70, left = "10%", right = "10%",
+             div(class = "scroll-panel",
+                 h2(icon("cogs"), " Global Settings & Workspace Office"),
+                 hr(),
+                 
+                 fluidRow(
+                     # COLUMN 1: PREPARATION
+                     column(6,
+                            # --- BOX: GEOSPATIAL OFFICE ---
+                            box(title = "Geospatial Office", status = "primary", width = NULL, solidHeader = TRUE,
+                                checkboxInput("fix_invalid", "Fix Geometries (st_make_valid)?", TRUE),
+                                checkboxInput("modify_crs", "Enable Custom Projection", value = FALSE),
+                                conditionalPanel("input.modify_crs == true",
+                                                 textInput("map_projection", "EPSG String:", value = "102033")
+                                ),
+                                hr(),
+                                checkboxInput("use_buffer_map", "Enable Geometry Buffering?", value = FALSE),
+                                conditionalPanel("input.use_buffer_map == true",
+                                                 numericInput("buffer_dist", "Buffer Dist (meters/deg):", value = 0),
+                                                 checkboxGroupInput("quantiles_to_buffer", "Size Quartiles:", 
+                                                                    choices = c("Q1"=1, "Q2"=2, "Q3"=3, "Q4"=4), selected = 1, inline = TRUE)
+                                ),
+                                actionButton("apply_mods", "APPLY GEOSPATIAL SETTINGS", class = "btn-primary btn-block")
+                            ),
+                            
+                            # --- BOX: Cs FORMULA LAB ---
+                            box(title = "Cs Laboratory (Formulas)", status = "info", width = NULL, solidHeader = TRUE,
+                                textInput("cs_similarity_index", "Custom Formula:", value = '(area_overlap / area_sp1) * (area_overlap / area_sp2)'),
+                                tags$small(em("Available: area_overlap, area_sp1, area_sp2"))
+                            )
+                     ),
+                     
+                     # COLUMN 2: ENGINE & PERFORMANCE
+                     column(6,
+                            box(title = "Computational Engine", status = "warning", width = NULL, solidHeader = TRUE,
+                                radioButtons("calc_engine", "Calculus Library:", choices = c("sf" = "engine_sf", "terra" = "engine_terra"), inline = TRUE),
+                                radioButtons("calc_mode", "Core Mode:", choices = c("Serial" = "mode_serial", "Parallel" = "mode_parallel"), inline = TRUE),
+                                conditionalPanel("input.calc_mode == 'mode_parallel'",
+                                                 sliderInput("num_cores", "Cores:", min = 2, max = 8, value = 2)
+                                ),
+                                radioButtons("memory_strategy", "Memory Strategy:", 
+                                             choices = c("Full Load" = "mem_all", "Chunked" = "mem_chunk")),
+                                conditionalPanel("input.memory_strategy == 'mem_chunk'",
+                                                 numericInput("chunk_size", "Batch Size (spp):", value = 20)
+                                )
+                            ),
+                            
+                            # --- BOX: VISUAL PREFERENCES ---
+                            box(title = "Visual Defaults", status = "success", width = NULL, solidHeader = TRUE,
+                                sliderInput("alpha_global", "Default Transparency:", min=0, max=1, value = 0.3, step=0.1),
+                                selectInput("palette_global", "Default Palette:", choices = c("Set2", "Set1", "Paired", "Dark2"), selected = "Set2")
+                            )
+                     )
+                 ),
+                 
+                 # --- SECTION: DOWNLOADS (Cleaned up) ---
+                 hr(),
+                 h3(icon("download"), "Data Export"),
+                 box(title = "Results Export", status = "danger", width = NULL,
+                     fluidRow(
+                         column(4, downloadButton("dl_chorotypes", "📥 Chorotypes", class = "btn-block")),
+                         column(4, downloadButton("dl_edges", "📥 Graph Edges", class = "btn-block")),
+                         column(4, downloadButton("dl_nodes", "📥 Graph Nodes", class = "btn-block"))
+                     )
+                 )
+             )
+         )
+     ),
   
 
     # --- The Glass Sidebar Container ----

@@ -66,16 +66,17 @@ server <- function(input, output, session) {
     spp_choices    <- reactiveVal(NULL) # Stores the unique species list (Memory)
     scan_results   <- reactiveVal(NULL) # NEW: Stores the SCAN Output for saving/loading
     
-    # --- 1.5 VIEWER MEMORY BANK ---
+    # --- 1.1 VIEWER MEMORY BANK ----
     # Stores UI state so it doesn't reset when changing tabs
     viewer_state <- reactiveValues(
         threshold = 0.5,
         groups = NULL,
-        alpha = 0.7,
+        alpha = 0.3,
         palette = "Set2",
         show_labels = TRUE
     )
     
+    # 1.2 LISTENERS TO UPDATES ----
     # Listeners: Update the memory whenever the user touches a control
     observeEvent(input$viewer_threshold, { viewer_state$threshold <- input$viewer_threshold })
     observeEvent(input$viewer_groups_check, { viewer_state$groups <- input$viewer_groups_check }, ignoreNULL = FALSE)
@@ -229,8 +230,8 @@ server <- function(input, output, session) {
             
             # --- VIEWER MODE: Colored by Chorotypes ---
             pal_fun <- colorFactor(palette = viewer_palette(), domain = display_shp$comps)
-            # Safe check for transparency slider (defaults to 0.7 if not loaded yet)
-            alpha_val <- if(!is.null(input$alpha_global)) input$alpha_global else 0.3 
+            
+            alpha_val <- if(!is.null(input$alpha_global)) input$alpha_global else 0.3
             
             map_proxy %>% addPolygons(
                 data = display_shp,
@@ -621,7 +622,6 @@ server <- function(input, output, session) {
                             actionButton("btn_select_none", "Clear", class="btn-xs btn-default")
                         ),
                         checkboxInput("single_select_mode", "Single Group Mode", value = FALSE),
-                        # -------------------------------
                         
                         uiOutput("viewer_group_selector"),
                         
@@ -637,7 +637,7 @@ server <- function(input, output, session) {
             }
         }
         
-        # 4. Final Return (MUST BE INSIDE renderUI)
+        # 4. Final Return (in renderUI)
         # If panel_content is still NULL (no condition met), we return NULL (hidden panel)
         if (is.null(panel_content)) return(NULL)
         
@@ -652,8 +652,8 @@ server <- function(input, output, session) {
             div(class = "panel-heading", style="cursor: move;", strong(panel_title)),
             div(class = "panel-body", panel_content)
         )
-    }) 
-    # ^-- Ensure this bracket closes the renderUI, NOT earlier!
+    })     # end renderUI
+    
     # --- 8. SMALL TABLES (Used in Right Panel) ----
     
     # E. Mini Table for Cs (Top 25)
@@ -675,9 +675,7 @@ server <- function(input, output, session) {
     }, colnames = FALSE, width = "100%", bordered = TRUE)
     
     
-    # ==========================================================================
-    # --- 9. DOWNLOADS ---
-    # ==========================================================================
+    # --- 9. DOWNLOADS ----
     
     # 1. Map Export
     output$dl_map <- downloadHandler(
@@ -719,9 +717,7 @@ server <- function(input, output, session) {
         content = function(file) { req(scan_graph()); write.csv(scan_graph()[['graph_nodes']], file, row.names = FALSE) }
     )
     
-    # ==========================================================================
     # --- 10. SCAN VIEWER LOGIC (The Visual Engine) ---
-    # ==========================================================================
     
     # A. Dynamic Checkbox Generator
     output$viewer_group_selector <- renderUI({
@@ -857,9 +853,7 @@ server <- function(input, output, session) {
     }, options = list(pageLength = 25, scrollX = TRUE))
     
 
-    # ==========================================================================
     # ---- 12. PROJECT MANAGER (SAVE / LOAD) 2may26 ----
-    # ==========================================================================
     
     # A. SAVE PROJECT
     output$save_project <- downloadHandler(
@@ -902,6 +896,23 @@ server <- function(input, output, session) {
             showNotification("Error loading project. Invalid file format.", type = "error")
         })
     })    
+    
+    # --- DYNAMIC MAP DIAGNOSIS ---- 2may2026
+    output$map_diagnosis_ui <- renderUI({
+        if (is.null(map_data())) {
+            return(wellPanel(style = "border: 1px solid red; background: #fff5f5;",
+                             p(style = "color: red;", icon("exclamation-triangle"), " Warning: No map loaded!")))
+        }
+        
+        wellPanel(style = "background: #f8f9fa; padding: 10px;",
+                  tags$strong("Map Diagnosis:"),
+                  tags$ul(
+                      tags$li("Species found:", length(spp_choices())),
+                      tags$li("Original CRS:", st_crs(map_data())$input),
+                      tags$li("Status: Ready for Cs Analysis")
+                  )
+        )
+    })
     
 } # End Server
 
