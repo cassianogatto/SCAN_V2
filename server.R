@@ -814,7 +814,7 @@ server <- function(input, output, session) {
             sf::st_drop_geometry() %>% 
             select(Species = all_of(col_name), Group_ID = comps) %>% 
             arrange(Group_ID, Species)
-    }, options = list(pageLength = 25, scrollX = TRUE))
+    }, options = list(pageLength = 20, scrollX = TRUE))
     
 
     # ---- 12. PROJECT MANAGER (SAVE / LOAD) 2may26 ----

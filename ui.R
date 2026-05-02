@@ -262,6 +262,7 @@ ui <- fillPage(
                        bottom = "2%",   # 10% down from the top edge
                        left = "2%",  # 30% in from the left edge
                        width = "25%", # Box width is 25% of the screen width
+                       #max-height = "90%",
                        draggable = TRUE, fixed = TRUE,
                        style = "z-index: 1060;", # Slightly higher index to stay on top
                        div(class = "panel-heading", style="cursor: move;", 
