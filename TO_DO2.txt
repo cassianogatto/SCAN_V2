@@ -1,0 +1,51 @@
+1 - Initial screen SCAN logo
+2 - TAB Files - upload Project 
+3 - SCAN
+4 - MAP Viewer
+4.5 - GRAPH viewer (Show the whole graph but selected chorotypes highlighted !?)
+5 - Settings
+6 - About & Directions
+
+
+
+Done - Fix Graph updates (SCAN table? edges and nodes?) OK
+(LeafLet not showing selected chorotypes - OK)
+(transparency and palette in viewer not responsive - OK)
+(Fix downloads OK)
+(LOAD and SAVE PROJECTS!!! with maps, Cs, graph... !! - OK)
+(boxes for select all and select none; when selecting among chorotypes, clean all others already selected or use shift or ctrl to select smartly (like explorer etc) OK)
+
+2- Develop a system for aggregating chorotypes hierarchicaly... to keep their relationships across Cts... we have to find the larger chorotype each species belongs and then names chorotypes accordingly, from lower to upper Cts
+
+2.1 - atributte the same colors and names for chorotypes across distinct Ct settings6.5 - keep selected chorotypes along distinct Ct levels? (may be using those same species? ignoring those not represented in new Ct settings?)
+
+3 - create UPLOAD session to all previously created maps, Cs matrix, SCAN edges and nodes - separately from Analysis - make a scheme  of 
+
+4 - Maintain selections after moving from distinct TABs (currently chorotype selection is reseted)
+
+5 - a full tab only for Network view / analysis
+
+6 - Species / Chrotypes selection on tables - dedicated data table to talk with viewer... 
+
+7 - Move viewer settings box to settings... include parameters such as number of species total and those composing chorotypes, Cs max min, Cs interval, max and min Ct found in the data, 
+
+8 - In SCAN Viewer move settings to a box or remove the boxes and put the controls in a left column OR move viewer settings to the settings TAB above Download - Settings can also have Cs CPU settings etc (visual arrangements can be done later...)
+8.5 - hightlight selected species through table (they are selected as the blue tag shows) in map and graph?
+
+9 - Tab for Leaflet full screen showing selected chorotypes (the same view settings used in SViewer tab?)
+
+10 - Leaflet options of background maps
+
+11- Make leaflet maps selectable (chorotypes or species)
+
+12 - a TAB only for tables with selectable boxes!!
+
+13 - Settings Tab can have Cs settings for SCAN parameters and another one for CPU adjust settings
+
+14 - list of species selected / shown is not available in viewers
+
+15 - same Cs thres used in Cs calc may automatically be transposed to Ct viewer (step) or Ct viewer automatically reads only those Ct values in matrix (may be both, as user may prefer); Same for SCAN parameters...
+
+16 - BTW, I am so deeply concerned about the SCAN app that I forgot some very important metrics related to chorotype metrics... unforgiven
+
+some metrics are basic such as the Ct, number of species, etc others require calculus, such as shared vs total area among all species in a chorotype, depth of relationships - translated in graph analysis as diameter ?, and some other useful graph metrics... (I really don't know if they are kept somewhere because I have a vague memory of calculating them in previous versions, may be only in the core of scan V0, before Shiny... We must make this information available somewhere - in chorotypes table for sure, at least
