@@ -60,11 +60,11 @@ calculate_chunk_cs_engine <- function(species_chunk, all_shapes, areas_df) {
 
 server <- function(input, output, session) {
     
-    # --- 1. REACTIVE STATE VALUES ----
+    # --- 1. REACTIVE STATE VALUES updt 2may2026 ----
     map_data       <- reactiveVal(NULL) # Stores the Master Shapefile (Projected)
     cs_matrix_data <- reactiveVal(NULL) # Stores the Cs Matrix (sp1, sp2, Cs)
     spp_choices    <- reactiveVal(NULL) # Stores the unique species list (Memory)
-    
+    scan_results   <- reactiveVal(NULL) # NEW: Stores the SCAN Output for saving/loading
     
     # --- 1.5 VIEWER MEMORY BANK ---
     # Stores UI state so it doesn't reset when changing tabs
@@ -365,7 +365,7 @@ server <- function(input, output, session) {
     
     # --- 5. SCAN ENGINE (V1 LOGIC) ----
     
-    scan_graph <- eventReactive(input$run_scan, {
+    observeEvent(input$run_scan, {  # updt 2may26
         req(cs_matrix_data())
         
         # 1. Inputs
@@ -442,7 +442,16 @@ server <- function(input, output, session) {
         results[['graph_nodes']] <- g_full %>% activate(nodes) %>% as_tibble()
         results[['graph_edges']] <- g_full %>% activate(edges) %>% as_tibble()
         
-        return(results)
+        # Save to the Master Memory Bank - 2may26
+        scan_results(results) 
+        showNotification("SCAN Analysis Complete!", type = "message")
+    })
+    
+    # --- The Bridge 2may26 ---
+    # This keeps all your downstream code working perfectly without needing rewrites
+    scan_graph <- reactive({ 
+        req(scan_results())
+        scan_results() 
     })
     
     # --- DEBUGGER: VIEWER DIAGNOSTICS ----
@@ -848,7 +857,51 @@ server <- function(input, output, session) {
     }, options = list(pageLength = 25, scrollX = TRUE))
     
 
+    # ==========================================================================
+    # ---- 12. PROJECT MANAGER (SAVE / LOAD) 2may26 ----
+    # ==========================================================================
     
+    # A. SAVE PROJECT
+    output$save_project <- downloadHandler(
+        filename = function() { paste0("SCAN_Project_", Sys.Date(), ".rds") },
+        content = function(file) {
+            showNotification("Bundling Project Data...", type = "message")
+            
+            project_bundle <- list(
+                map_data = map_data(),
+                cs_matrix = cs_matrix_data(),
+                scan_res = scan_results(),
+                spp_list = spp_choices()
+            )
+            saveRDS(project_bundle, file)
+        }
+    )
+    
+    # B. LOAD PROJECT
+    observeEvent(input$load_project, {
+        req(input$load_project)
+        showNotification("Loading Project Data...", type = "message")
+        
+        tryCatch({
+            project_bundle <- readRDS(input$load_project$datapath)
+            
+            # Restore the memory
+            if (!is.null(project_bundle$map_data)) map_data(project_bundle$map_data)
+            if (!is.null(project_bundle$cs_matrix)) cs_matrix_data(project_bundle$cs_matrix)
+            if (!is.null(project_bundle$scan_res)) scan_results(project_bundle$scan_res)
+            if (!is.null(project_bundle$spp_list)) spp_choices(project_bundle$spp_list)
+            
+            # Update the UI Dropdowns
+            if (!is.null(project_bundle$spp_list)) {
+                updateSelectizeInput(session, "map_spp_select", choices = project_bundle$spp_list, server = TRUE)
+            }
+            
+            showNotification("Project Loaded Successfully! You can now navigate to the Viewer.", type = "message", duration = 8)
+            
+        }, error = function(e) {
+            showNotification("Error loading project. Invalid file format.", type = "error")
+        })
+    })    
     
 } # End Server
 

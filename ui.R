@@ -11,6 +11,8 @@ library(shinydashboard)
 library(shinyjs)
 
 ui <- fillPage(
+    useShinyjs(), # Crucial for our navigation buttons
+    
     # --- 1. CSS & Header ----
     tags$style(type = "text/css", "
     html, body {width:100%; height:100%; margin:0; padding:0; overflow: hidden;}
@@ -70,6 +72,11 @@ ui <- fillPage(
                     onclick = "Shiny.setInputValue('top_nav', 'About SCAN');", 
                     "About SCAN"),
            
+           # WORKSPACE MANAGER (NEW)
+           tags$div(class = "nav-item", 
+                    onclick = "Shiny.setInputValue('top_nav', 'Workspace');", 
+                    "Workspace"),
+           
            # ANALYSIS
            tags$div(class = "nav-item", 
                     onclick = "Shiny.setInputValue('top_nav', 'SCAN Analysis');", 
@@ -90,7 +97,7 @@ ui <- fillPage(
     leafletOutput("map", width = "100%", height = "100%"),
     
     
-    # --- 4. Merged Content: Info & Documentation ----
+    # --- 4. Merged Content: Info & Documentation updated 2may2026 ----
     conditionalPanel(
         condition = "input.top_nav == 'About SCAN' || input.top_nav_selectio == 'Directions'",
         absolutePanel(
@@ -128,6 +135,42 @@ ui <- fillPage(
         )
     ),
     
+  # --- 4.5 NEW TAB: WORKSPACE MANAGER ---
+  conditionalPanel(
+      condition = "input.top_nav == 'Workspace'",
+      absolutePanel(
+          top = 70, left = "15%", right = "15%",
+          div(class = "scroll-panel",
+              h2(icon("folder-open"), " Workspace Manager"),
+              p("Start a new analysis from scratch, or load a previously saved session."),
+              hr(),
+              
+              fluidRow(
+                  # Left Side: Start New
+                  column(6,
+                         box(title = "Start New Analysis", status = "primary", width = NULL, solidHeader = TRUE,
+                             p("Upload raw shapefiles, configure parameters, and run the SCAN engine from scratch."),
+                             tags$br(),
+                             actionButton("btn_jump_analysis", "Go to SCAN Analysis", class = "btn-primary btn-block", 
+                                          icon = icon("arrow-right"), onclick = "Shiny.setInputValue('top_nav', 'SCAN Analysis');")
+                         )
+                  ),
+                  
+                  # Right Side: Load Existing
+                  column(6,
+                         box(title = "Load Existing Project", status = "warning", width = NULL, solidHeader = TRUE,
+                             p("Resume a previously saved session (.rds file) without recalculating the Cs matrix or graphs."),
+                             fileInput("load_project", "Upload Project File (.rds)", accept = c(".rds")),
+                             tags$hr(),
+                             p(strong("Save Current Workspace:")),
+                             downloadButton("save_project", "Save Current Project (.rds)", class = "btn-default btn-block")
+                         )
+                  )
+              )
+          )
+      )
+  ), 
+  
     # --- 5. Sidebar: SCAN Analysis Flow ----
     conditionalPanel(
         condition = "input.top_nav == 'SCAN Analysis'",
