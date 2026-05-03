@@ -189,7 +189,7 @@ ui <- fillPage(
                                 # Warning Box
                                 div(style = "font-size: 0.9em; color: #856404; background-color: rgba(255, 243, 205, 0.7); border: 1px solid #ffeeba; padding: 10px; border-radius: 5px; margin-bottom: 15px;",
                                     icon("exclamation-triangle"), 
-                                    "Note: Cutting the tail of lower values optimizes computation. Low Cs values can still be biogeographically informative."
+                                    "Note: Cutting the tail of lower values optimizes computation.But remmeber: low Cs values can still be biogeographically informative for some unusual groups."
                                 ),
                                 
                                 actionButton("calculate_Cs", "RUN Cs ANALYSIS", 
@@ -204,11 +204,17 @@ ui <- fillPage(
                             box(title="Step 3: Run SCAN Engine", status = "danger", width=NULL, solidHeader = TRUE,
                                 numericInput("resolution", "Resolution (Ct Step):", value = 0.1, step = 0.01, min=0.01),
                                 fluidRow(
-                                    column(6, numericInput("threshold_min", "Min Ct:", value = 0.2, step = 0.05)),
-                                    column(6, numericInput("threshold_max", "Max Ct:", value = 0.9, step = 0.05))
+                                    column(6, numericInput("threshold_min", "Min Ct:", value = 0.2)),
+                                    column(6, numericInput("threshold_max", "Max Ct:", value = 0.9))
                                 ),
                                 actionButton("run_scan", "RUN SCAN ANALYSIS", 
-                                             class = "btn-danger btn-block", style = "font-weight: bold; font-size: 1.1em;", icon = icon("rocket"))
+                                             class = "btn-danger btn-block", icon = icon("rocket")),
+                                
+                                hr(),
+                                tags$b("Or Load Previous Results:"),
+                                # Only requests Edges and Nodes now
+                                fileInput("upload_scan_csvs", "Upload Edges & Nodes (.csv)", 
+                                          multiple = TRUE, accept = ".csv")
                             )
                         ) # End checklist div
                     ) # End left-sidebar div
@@ -328,7 +334,8 @@ ui <- fillPage(
                             # --- BOX: Cs FORMULA LAB ---
                             box(title = "Cs Laboratory (Formulas)", status = "info", width = NULL, solidHeader = TRUE,
                                 textInput("cs_similarity_index", "Custom Formula:", value = '(area_overlap / area_sp1) * (area_overlap / area_sp2)'),
-                                tags$small(em("Available: area_overlap, area_sp1, area_sp2"))
+                                tags$small(em("Available: area_overlap, area_sp1, area_sp2")),
+                                tags$small(em("Alternatively you can build your own Cs similarity matrix and upload; use a standard SCAN Cs matrix as a template."))
                             )
                      ),
                      

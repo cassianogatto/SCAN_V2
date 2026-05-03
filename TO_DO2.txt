@@ -1,3 +1,30 @@
+Settings rearrangement
+
+SCAN Analysis
+MAP:
+load map
+brief map diagnosis (showing map is loaded, nspp, crs, etc) - if no map is loaded warning to load it
+show loaded species (all) with a palette and low transparency (lower default transparency to 0.3)
+
+CRS Projection, Fix Geometries, and Buffering settings -> settings Geospatial Office
+
+Cs:
+
+Load a Cs Matrix;
+Min Cs and Note 
+RUN Cs Analysis
+
+Spatial Congruence Formula, Engine & Performance -> Settings Cs formula and Performance & Engine
+
+SCAN
+
+1. Algorithm Configuration
+RUN
+
+Move Results to Settings Downloads (need to fix the downloads?)
+
+
+
 1 - Initial screen SCAN logo
 2 - TAB Files - upload Project 
 3 - SCAN
@@ -49,3 +76,5 @@ Done - Fix Graph updates (SCAN table? edges and nodes?) OK
 16 - BTW, I am so deeply concerned about the SCAN app that I forgot some very important metrics related to chorotype metrics... unforgiven
 
 some metrics are basic such as the Ct, number of species, etc others require calculus, such as shared vs total area among all species in a chorotype, depth of relationships - translated in graph analysis as diameter ?, and some other useful graph metrics... (I really don't know if they are kept somewhere because I have a vague memory of calculating them in previous versions, may be only in the core of scan V0, before Shiny... We must make this information available somewhere - in chorotypes table for sure, at least
+
+17 - Implement a way of saving only selected chorotypes? (map, Cs matrix, and scan graphs?)

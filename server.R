@@ -816,6 +816,80 @@ server <- function(input, output, session) {
             arrange(Group_ID, Species)
     }, options = list(pageLength = 20, scrollX = TRUE))
     
+    # --- 11. UNIVERSAL SCAN UPLOADER (2 or 3 Files) ----
+    observeEvent(input$upload_scan_csvs, {
+        req(input$upload_scan_csvs)
+        files <- input$upload_scan_csvs
+        up_nodes <- NULL; up_edges <- NULL; up_chorotypes <- NULL
+        
+        showNotification("Unpacking SCAN Data...", type = "message")
+        
+        # 1. Identify Files by Content
+        for (i in 1:nrow(files)) {
+            df <- read.csv(files$datapath[i])
+            if ("from" %in% names(df)) { up_edges <- df }
+            else if ("Chorotype_ID" %in% names(df)) { up_chorotypes <- df }
+            else if ("name" %in% names(df) || "Species" %in% names(df)) { 
+                if("Species" %in% names(df)) names(df)[names(df) == "Species"] <- "name"
+                up_nodes <- df 
+            }
+        }
+        
+        # 2. Reconstruct if mandatory Edges/Nodes exist
+        if (!is.null(up_nodes) && !is.null(up_edges)) {
+            tryCatch({
+                # Bridge Integers to Names if needed
+                if(is.numeric(up_edges$from)) {
+                    up_edges$from <- up_nodes$name[up_edges$from]
+                    up_edges$to   <- up_nodes$name[up_edges$to]
+                }
+                
+                # Build the tidygraph[cite: 6]
+                g_full <- as_tbl_graph(up_edges, directed = FALSE) %>%
+                    activate(nodes) %>% left_join(up_nodes, by = "name")
+                
+                # 3. IF GROUPS FILE IS MISSING -> RECONSTRUCT HIERARCHY
+                if (is.null(up_chorotypes)) {
+                    showNotification("Chorotype table missing. Reconstructing hierarchy...", type = "warning")
+                    thresholds <- seq(input$threshold_min, input$threshold_max, by = input$resolution)
+                    chorotypes_list <- list()
+                    
+                    for(ct in thresholds) {
+                        g_temp <- g_full %>% activate(edges) %>% filter(Cs >= ct) %>%
+                            activate(nodes) %>% mutate(degree = centrality_degree()) %>% filter(degree > 0)
+                        
+                        comps <- g_temp %>% activate(nodes) %>% mutate(cid = group_components()) %>% as_tibble()
+                        if(nrow(comps) == 0) next
+                        
+                        comp_groups <- split(comps$name, comps$cid)
+                        for(id in names(comp_groups)) {
+                            if(length(comp_groups[[id]]) >= 2) {
+                                chorotypes_list[[length(chorotypes_list)+1]] <- data.frame(
+                                    Threshold = ct, Chorotype_ID = paste0("Ct", ct, "_G", id),
+                                    Species = comp_groups[[id]], N_Species = length(comp_groups[[id]])
+                                )
+                            }
+                        }
+                    }
+                    up_chorotypes <- bind_rows(chorotypes_list)
+                }
+                
+                # 4. FINAL SYNC
+                scan_results(list(
+                    chorotypes = up_chorotypes,
+                    graph = g_full,
+                    graph_nodes = up_nodes,
+                    graph_edges = up_edges
+                ))
+                
+                showNotification("Success: SCAN session fully restored!", type = "message")
+            }, error = function(e) {
+                showNotification(paste("Error during restoration:", e$message), type = "error")
+            })
+        } else {
+            showNotification("Select at least Edges and Nodes CSVs.", type = "warning")
+        }
+    })
 
     # ---- 12. PROJECT MANAGER (SAVE / LOAD) 2may26 ----
     
@@ -881,6 +955,7 @@ server <- function(input, output, session) {
                   )
         )
     })
+    
     
     # --- SYNC VIEWER STEP WITH SCAN RESOLUTION ----
     observeEvent(input$resolution, {
