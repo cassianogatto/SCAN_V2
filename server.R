@@ -76,7 +76,16 @@ server <- function(input, output, session) {
         show_labels = TRUE
     )
     
-    # 1.2 LISTENERS TO UPDATES ----
+    
+    # 1.2 THE VIEWER BRIDGE ----
+    # This connects the Engine output to all your Maps and Tables
+    scan_graph <- reactive({ 
+        req(scan_results()) # Wait until results exist
+        scan_results() 
+    })
+    
+    
+    # 1.3 LISTENERS TO UPDATES ----
     # Listeners: Update the memory whenever the user touches a control
     observeEvent(input$viewer_threshold, { viewer_state$threshold <- input$viewer_threshold })
     observeEvent(input$viewer_groups_check, { viewer_state$groups <- input$viewer_groups_check }, ignoreNULL = FALSE)
@@ -228,20 +237,22 @@ server <- function(input, output, session) {
         map_proxy <- leafletProxy("map") %>% clearShapes()
         
         # 4. Render the appropriate polygons
+        # --- MAP UPDATER: Lineage-Aware Version ---
         if (use_chorotypes && !is.null(viewer_palette())) {
             
-            # --- VIEWER MODE: Colored by Chorotypes ---
-            pal_fun <- colorFactor(palette = viewer_palette(), domain = display_shp$comps)
+            # Change 'comps' to 'Chorotype' here
+            pal_fun <- colorFactor(palette = viewer_palette(), domain = display_shp$Chorotype)
             
             alpha_val <- if(!is.null(input$alpha_global)) input$alpha_global else 0.3
             
             map_proxy %>% addPolygons(
                 data = display_shp,
-                fillColor = ~pal_fun(comps),
+                fillColor = ~pal_fun(Chorotype), # Change this to Chorotype
                 fillOpacity = alpha_val,
                 color = "white", weight = 1, opacity = 1,
                 label = ~as.character(display_shp[[col_name]]),
-                popup = ~paste("<b>Species:</b>", display_shp[[col_name]], "<br><b>Group:</b>", comps)
+                # Update popup to use Chorotype
+                popup = ~paste("<b>Species:</b>", display_shp[[col_name]], "<br><b>Chorotype:</b>", Chorotype)
             )
             
         } else {
@@ -366,105 +377,119 @@ server <- function(input, output, session) {
         }
     })
     
-    # --- 5. SCAN ENGINE (V1 LOGIC) ----
-    
-    observeEvent(input$run_scan, {  # updt 2may26
+    # --- 5. HIERARCHICAL SCAN ENGINE (1.1.1 Nomenclature) 3may2026 ----
+    observeEvent(input$run_scan, {
         req(cs_matrix_data())
         
-        # 1. Inputs
+        # 1. Setup
         df_cs <- cs_matrix_data() 
         thresholds <- seq(input$threshold_min, input$threshold_max, by = input$resolution)
-        
-        # 2. Initial Graph
         cs_filtered <- df_cs %>% filter(Cs >= input$threshold_min)
         g_full <- as_tbl_graph(cs_filtered, directed = FALSE)
-        chorotypes_df <- data.frame()
         
-        # 3. Loop
-        withProgress(message = 'Running SCAN Analysis...', value = 0, {
+        chorotypes_df <- data.frame()
+        lineage_history <- list() # Stores {species_set = ID} for tracking
+        next_base_id <- 1 
+        
+        # 2. The Hierarchical Loop
+        withProgress(message = 'Running Lineage Analysis...', value = 0, {
             for(ct in thresholds) {
                 incProgress(1/length(thresholds), detail = paste("Ct:", ct))
                 
-                # Filter Edges & Nodes
+                # Filter network for current threshold
                 g_temp <- g_full %>%
                     activate(edges) %>% filter(Cs >= ct) %>%
                     activate(nodes) %>% mutate(degree = centrality_degree()) %>% filter(degree > 0)
                 
-                # Find Components
-                comps <- g_temp %>% activate(nodes) %>% mutate(component_id = group_components()) %>% as_tibble()
-                if(nrow(comps) == 0) next
+                Chorotype_ID <- g_temp %>% activate(nodes) %>% mutate(cid = group_components()) %>% as_tibble()
+                if(nrow(Chorotype_ID) == 0) next
                 
-                comp_list <- split(comps$name, comps$component_id)
+                comp_list <- split(Chorotype_ID$name, Chorotype_ID$cid)
+                current_step_names <- list()
                 
-                # Check Validity
                 for(cid in names(comp_list)) {
-                    spp_in_group <- comp_list[[cid]]
+                    spp_in_group <- sort(comp_list[[cid]])
                     if(length(spp_in_group) < 2) next
                     
+                    # --- VALIDATION (Diameter/Overlap) ---
                     is_valid <- TRUE
+                    g_sub <- g_temp %>% filter(name %in% spp_in_group)
+                    if(isTRUE(input$overlap) && igraph::edge_density(g_sub) < 1) is_valid <- FALSE
+                    if(is_valid && isTRUE(input$filter_diameter) && igraph::diameter(g_sub) > input$max_diameter) is_valid <- FALSE
                     
-                    # Clique Check
-                    if(isTRUE(input$overlap)) {
-                        g_sub <- g_temp %>% filter(name %in% spp_in_group)
-                        if(igraph::edge_density(g_sub) < 1) is_valid <- FALSE
-                    }
-                    
-                    # Diameter Check
-                    if(is_valid && isTRUE(input$filter_diameter)) {
-                        g_sub <- g_temp %>% filter(name %in% spp_in_group)
-                        if(igraph::diameter(g_sub) > input$max_diameter) is_valid <- FALSE
-                    }
-                    
-                    # Store Result
                     if(is_valid) {
+                        # --- 3. NOMENCLATURE LOGIC (1.1.1) ---
+                        final_id <- ""
+                        parent_found <- FALSE
+                        
+                        # Check previous step for a Parent or Identity
+                        if(length(lineage_history) > 0) {
+                            prev_step <- lineage_history[[length(lineage_history)]]
+                            for(p_id in names(prev_step)) {
+                                p_spp <- prev_step[[p_id]]
+                                
+                                # A. IDENTITY: Same species = Same ID
+                                if(identical(spp_in_group, p_spp)) {
+                                    final_id <- p_id
+                                    parent_found <- TRUE; break
+                                }
+                                # B. DIFFERENTIATION: Subset = Child ID (e.g. 1.1)
+                                if(all(spp_in_group %in% p_spp)) {
+                                    siblings <- grep(paste0("^", p_id, "\\."), names(current_step_names))
+                                    final_id <- paste0(p_id, ".", length(siblings) + 1)
+                                    parent_found <- TRUE; break
+                                }
+                            }
+                        }
+                        
+                        # C. NEW ORIGIN: No parent found[cite: 7]
+                        if(!parent_found) {
+                            final_id <- as.character(next_base_id)
+                            next_base_id <- next_base_id + 1
+                        }
+                        
+                        # Record for this step's history
+                        current_step_names[[final_id]] <- spp_in_group
+                        
+                        # Store Result with Metrics[cite: 7]
                         chorotypes_df <- rbind(chorotypes_df, data.frame(
                             Threshold = ct,
-                            Chorotype_ID = paste0("Ct", ct, "_G", cid),
+                            Chorotype_ID = final_id,
                             Species = I(list(spp_in_group)), 
-                            N_Species = length(spp_in_group)
+                            N_Species = length(spp_in_group),
+                            Diameter = igraph::diameter(g_sub),
+                            Density = round(igraph::edge_density(g_sub), 3)
                         ))
                     }
                 }
+                # Advance history tracker[cite: 7]
+                lineage_history[[as.character(ct)]] <- current_step_names
             }
         })
         
-        # 4. Packaging
-        results <- list()
+        # 4. Final Packaging[cite: 6, 7]
+        res_chorotypes <- chorotypes_df %>% tidyr::unnest(Species)
         
-        if(nrow(chorotypes_df) > 0) {
-            chorotypes_long <- chorotypes_df %>% 
-                tidyr::unnest(Species) %>%
-                mutate(Species = as.character(Species))
-        } else {
-            chorotypes_long <- data.frame(Threshold=numeric(), Chorotype_ID=character(), Species=character(), N_Species=integer())
-        }
+        scan_results(list(
+            chorotypes = res_chorotypes,
+            graph = g_full,
+            graph_nodes = g_full %>% activate(nodes) %>% as_tibble(),
+            graph_edges = g_full %>% activate(edges) %>% as_tibble()
+        ))
         
-        results[['chorotypes']] <- chorotypes_long
-        results[['parameters']] <- data.frame(Min_Ct = input$threshold_min, Max_Ct = input$threshold_max, Resolution = input$resolution)
-        results[['graph']] <- g_full
-        results[['graph_nodes']] <- g_full %>% activate(nodes) %>% as_tibble()
-        results[['graph_edges']] <- g_full %>% activate(edges) %>% as_tibble()
-        
-        # Save to the Master Memory Bank
-        scan_results(results) 
-        
-        # NEW: Restore notification after the eventReactive transition
-        showNotification("SCAN Analysis Complete!", type = "message")
+        # --- SYNC SLIDER STEP ---
+        updateSliderInput(session, "viewer_threshold", step = input$resolution)
+        showNotification("Hierarchical SCAN Complete!", type = "message")
     })
     
-    # --- The Bridge 2may26 ---
-    # This keeps all your downstream code working perfectly without needing rewrites
-    scan_graph <- reactive({ 
-        req(scan_results())
-        scan_results() 
-    })
     
     # --- 6. UI OUTPUTS & RENDERERS ----
      
     # A. SCAN Preview Table (Main Window)
     output$table_download_preview <- DT::renderDT({
         req(scan_graph())
-        df <- scan_graph()[['chorotypes']]
+        df <- scan_graph()[['chorotypes']] %>% 
+            rename(Chorotype = Chorotype_ID) # Final touch for consistency
         DT::datatable(df, options = list(pageLength = 35, scrollX = TRUE))
     })
     
@@ -514,7 +539,7 @@ server <- function(input, output, session) {
         # 3. Logic Flow
         if (!is.null(top_lvl)) {
             
-            # --- CASE A: SCAN ANALYSIS ---
+            # --- CASE A: SCAN ANALYSIS ----
             if (top_lvl == "SCAN Analysis") {
                 
                 if (!is.null(sub_lvl) && sub_lvl == "Map") {
@@ -569,16 +594,27 @@ server <- function(input, output, session) {
                 panel_title <- "Chorotype Selection"
                 
                 # Check if we have results to show
+                
+                # Default starting resolution
+                default_res <- 0.05
+                
                 res_ready <- FALSE
-                try({ if(exists("scan_graph") && !is.null(scan_graph())) res_ready <- TRUE }, silent=TRUE)
+                
+                if (!is.null(scan_results())) res_ready <- TRUE
                 
                 if(res_ready) {
                     panel_content <- tagList(
                         
-                        # Ct threshold slidebar ---
+                        uiOutput("viewer_res_warning"),
+                        
+                        # The Master Controller
+                        numericInput("viewer_res_manual", "Resolution (Step):", 
+                                     value = default_res, step = 0.01, min = 0.001),
+                        
+                        # The Slider (Starts at default_res, but controlled by the observer below)
                         sliderInput("viewer_threshold", "1. Threshold (Ct):", 
-                            min = 0, max = 1, 
-                            value = isolate(viewer_state$threshold), step = 0.1),
+                                    min = 0, max = 1, 
+                                    value = isolate(viewer_state$threshold), step = default_res),
                         
                         # --- NEW: SELECTION CONTROLS ---
                         div(style = "margin-bottom: 5px; margin-top: -10px;",
@@ -681,12 +717,12 @@ server <- function(input, output, session) {
         content = function(file) { req(scan_graph()); write.csv(scan_graph()[['graph_nodes']], file, row.names = FALSE) }
     )
     
-    # --- 10. SCAN VIEWER LOGIC (The Visual Engine) ---
+    # --- 10. SCAN VIEWER  ----
     
-    # A. Dynamic Checkbox Generator
+    # A. Dynamic Checkbox Generator (Sorted by Lineage)
     output$viewer_group_selector <- renderUI({
-        req(scan_graph())
-        df <- scan_graph()[['chorotypes']]
+        req(scan_results()) # Listen directly to results
+        df <- scan_results()[['chorotypes']]
         current_ct <- input$viewer_threshold
         
         available_groups <- df %>% 
@@ -696,20 +732,41 @@ server <- function(input, output, session) {
         
         if(length(available_groups) == 0) return(helpText("No chorotypes formed exactly at this Threshold."))
         
-        display_names <- gsub(".*_G", "Chor. ", available_groups)
-        names(available_groups) <- display_names
+        # --- PADDED SORTING FOR HIERARCHICAL IDs ---
+        # Standard alphabetic sort puts 1.10 before 1.2. We "pad" numbers (e.g., 1.2 -> 001.002, 1.10 -> 001.010) to fix this[cite: 7].
+        groups_raw <- unique(available_groups)
+        
+        # Split by dot (Source 7 already loads stringr)[cite: 7]
+        split_parts <- stringr::str_split(groups_raw, "\\.")
+        
+        # Pad segments to 3 digits[cite: 7]
+        padded_keys <- lapply(split_parts, function(x) {
+            padded_x <- stringr::str_pad(x, width = 3, side = "left", pad = "0")
+            paste(padded_x, collapse = ".")
+        })
+        
+        # Sort using the padded key[cite: 7]
+        sorted_df <- data.frame(original = groups_raw, key = unlist(padded_keys)) %>%
+            dplyr::arrange(key)
+        
+        final_sorted_groups <- sorted_df$original
+        # ---------------------------------------------
+        
+        # Use the IDs directly as labels for the 1.1.1 system[cite: 7]
+        display_labels <- final_sorted_groups
+        names(final_sorted_groups) <- display_labels
         
         mem_groups <- isolate(viewer_state$groups)
-        safe_selection <- if (!is.null(mem_groups) && any(mem_groups %in% available_groups)) {
-            mem_groups[mem_groups %in% available_groups]
+        safe_selection <- if (!is.null(mem_groups) && any(mem_groups %in% final_sorted_groups)) {
+            mem_groups[mem_groups %in% final_sorted_groups]
         } else {
-            available_groups[1]
+            final_sorted_groups[1]
         }
         
         if (isTRUE(input$single_select_mode)) {
-            radioButtons("viewer_groups_radio", NULL, choices = available_groups, selected = safe_selection[1], inline = TRUE)
+            radioButtons("viewer_groups_radio", NULL, choices = final_sorted_groups, selected = safe_selection[1], inline = TRUE)
         } else {
-            checkboxGroupInput("viewer_groups_check", NULL, choices = available_groups, selected = safe_selection, inline = TRUE)
+            checkboxGroupInput("viewer_groups_check", NULL, choices = final_sorted_groups, selected = safe_selection, inline = TRUE)
         }
     })
     
@@ -730,22 +787,34 @@ server <- function(input, output, session) {
         updateCheckboxGroupInput(session, "viewer_groups_check", selected = character(0))
     })
     
-    # C. Helper: The Sub-Graph (Filtered Network)
+    # --- 10. SCAN VIEWER LOGIC (Lineage-Aware Visualization) ---
+    
+    # A. Dynamic Checkbox Generator (Sorted by Lineage) --- KEEP YOUR EXISTING SORTED CODE HERE ---
+    
+    # C. Helper: The Sub-Graph (Lineage-Aware Filter)
     viewer_sub_graph <- reactive({
-        req(scan_graph(), input$viewer_threshold)
+        req(scan_results(), input$viewer_threshold)
         
         current_groups <- if(isTRUE(input$single_select_mode)) input$viewer_groups_radio else input$viewer_groups_check
         req(current_groups)
         
-        df <- scan_graph()[['chorotypes']]
-        selected_spp <- df %>% filter(Chorotype_ID %in% current_groups) %>% pull(Species) %>% unique()
+        df <- scan_results()[['chorotypes']]
+        
+        # Filter by both threshold AND the 1.1.1 IDs
+        target_df <- df %>% 
+            filter(abs(Threshold - input$viewer_threshold) < 0.001) %>%
+            filter(Chorotype_ID %in% current_groups)
+        
+        selected_spp <- target_df %>% pull(Species) %>% unique()
         req(length(selected_spp) > 0)
         
-        g_full <- scan_graph()[['graph']]
+        g_full <- scan_results()[['graph']]
+        
+        # Build sub-graph and attach the 1.1.1 names to the nodes
         g_view <- g_full %>%
             activate(edges) %>% filter(Cs >= input$viewer_threshold) %>% 
             activate(nodes) %>% filter(name %in% selected_spp) %>% 
-            mutate(comps = group_components())
+            left_join(target_df %>% select(name = Species, Chorotype = Chorotype_ID), by = "name")
         
         return(g_view)
     })
@@ -757,22 +826,25 @@ server <- function(input, output, session) {
         col_name <- if(isTRUE(input$ID_column)) input$colum_sp_map else "sp"
         if (!col_name %in% names(map_data())) col_name <- names(map_data())[1] 
         
-        spp_names <- viewer_sub_graph() %>% activate(nodes) %>% pull(name)
-        node_data <- viewer_sub_graph() %>% activate(nodes) %>% as_tibble() %>% select(name, comps)
+        node_data <- viewer_sub_graph() %>% activate(nodes) %>% as_tibble() %>% 
+            select(name, Chorotype)
         
         join_by_vec <- setNames("name", col_name)
         
         map_final <- map_data() %>% 
-            filter(.data[[col_name]] %in% spp_names) %>% 
+            filter(.data[[col_name]] %in% node_data$name) %>% 
             left_join(node_data, by = join_by_vec)
         
         return(map_final)
     })
     
-    # E. Helper: Consistent Palette
+    # E. Helper: Lineage Palette
     viewer_palette <- reactive({
         req(viewer_sub_graph(), input$palette_global)
-        grps <- viewer_sub_graph() %>% activate(nodes) %>% as_tibble() %>% pull(comps) %>% unique() %>% sort()
+        # Unique 1.1.1 IDs are the new keys for colors
+        grps <- viewer_sub_graph() %>% activate(nodes) %>% as_tibble() %>% 
+            pull(Chorotype) %>% unique() %>% sort()
+        
         n_colors <- length(grps)
         if(n_colors < 3) n_colors <- 3
         
@@ -782,12 +854,14 @@ server <- function(input, output, session) {
         return(cols)
     })
     
-    # --- OUTPUTS (For the Main Window) ---
+    # --- UPDATED PLOT RENDERERS ---
+    
     output$ggplot_map <- renderPlot({
         req(viewer_map_data(), viewer_palette(), input$alpha_global)
         ggplot(viewer_map_data()) +
-            geom_sf(aes(fill = as.factor(comps)), color = "black", size = 0.2, alpha = input$alpha_global) +
-            scale_fill_manual(values = viewer_palette(), name = "Group") +
+            # Fill aesthetics now use the 'Chorotype' lineage column
+            geom_sf(aes(fill = as.factor(Chorotype)), color = "black", size = 0.2, alpha = input$alpha_global) +
+            scale_fill_manual(values = viewer_palette(), name = "Chorotype") +
             theme_minimal() + theme(legend.position = "bottom") +
             labs(title = paste("Distribution (Ct =", input$viewer_threshold, ")"))
     })
@@ -797,7 +871,7 @@ server <- function(input, output, session) {
         lay <- create_layout(viewer_sub_graph(), layout = "nicely")
         p <- ggraph(lay) +
             geom_edge_link(aes(alpha = Cs), width = 1, show.legend = FALSE) +
-            geom_node_point(aes(fill = as.factor(comps)), size = 5, shape = 21, color = "black") +
+            geom_node_point(aes(fill = as.factor(Chorotype)), size = 5, shape = 21, color = "black") +
             scale_fill_manual(values = viewer_palette()) +
             theme_graph() + theme(legend.position = "none")
         if(isTRUE(input$viewer_show_labels)) p <- p + geom_node_text(aes(label = name), repel = TRUE, size = 4, fontface="bold")
@@ -812,8 +886,9 @@ server <- function(input, output, session) {
         
         viewer_map_data() %>% 
             sf::st_drop_geometry() %>% 
-            select(Species = all_of(col_name), Group_ID = comps) %>% 
-            arrange(Group_ID, Species)
+            # Simply select the existing 'Chorotype' column
+            select(Species = all_of(col_name), Chorotype) %>% 
+            arrange(Chorotype, Species)
     }, options = list(pageLength = 20, scrollX = TRUE))
     
     # --- 11. UNIVERSAL SCAN UPLOADER (2 or 3 Files) ----
@@ -858,10 +933,10 @@ server <- function(input, output, session) {
                         g_temp <- g_full %>% activate(edges) %>% filter(Cs >= ct) %>%
                             activate(nodes) %>% mutate(degree = centrality_degree()) %>% filter(degree > 0)
                         
-                        comps <- g_temp %>% activate(nodes) %>% mutate(cid = group_components()) %>% as_tibble()
-                        if(nrow(comps) == 0) next
+                        Chorotype_ID <- g_temp %>% activate(nodes) %>% mutate(cid = group_components()) %>% as_tibble()
+                        if(nrow(Chorotype_ID) == 0) next
                         
-                        comp_groups <- split(comps$name, comps$cid)
+                        comp_groups <- split(Chorotype_ID$name, Chorotype_ID$cid)
                         for(id in names(comp_groups)) {
                             if(length(comp_groups[[id]]) >= 2) {
                                 chorotypes_list[[length(chorotypes_list)+1]] <- data.frame(
@@ -888,6 +963,16 @@ server <- function(input, output, session) {
             })
         } else {
             showNotification("Select at least Edges and Nodes CSVs.", type = "warning")
+        }
+        
+        # --- SYNC SLIDER TO UPLOADED DATA RESOLUTION ---
+        if (!is.null(up_chorotypes)) {
+            # Find the distance between the first two unique thresholds
+            u_thresholds <- sort(unique(up_chorotypes$Threshold))
+            if(length(u_thresholds) > 1) {
+                detected_res <- u_thresholds[2] - u_thresholds[1]
+                updateSliderInput(session, "viewer_threshold", step = detected_res)
+            }
         }
     })
 
@@ -934,6 +1019,15 @@ server <- function(input, output, session) {
             showNotification("Error loading project. Invalid file format.", type = "error")
         })
     })    
+    
+    # --- MANUAL RESOLUTION CONTROLLER ----
+    observeEvent(input$viewer_res_manual, {
+        # This function 're-writes' the slider settings in the user's browser
+        updateSliderInput(session, "viewer_threshold", step = input$viewer_res_manual)
+        
+        showNotification(paste("Slider resolution updated to:", input$viewer_res_manual), 
+                         type = "message", duration = 2)
+    })
     
     # --- DYNAMIC MAP DIAGNOSIS 2may2026 ----
     # Provides feedback directly inside the Analysis sidebar Box 1
