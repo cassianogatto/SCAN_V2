@@ -9,6 +9,7 @@ library(shiny)
 library(leaflet)
 library(shinydashboard)
 library(shinyjs)
+library(shinyjqui)
 
 ui <- fillPage(
     useShinyjs(), # Crucial for our navigation buttons
@@ -225,82 +226,60 @@ ui <- fillPage(
     # --- 6. SCAN Viewer (Floating Widgets Architecture - DETACHED) ----
     conditionalPanel(condition = "input.top_nav == 'SCAN Viewer'",
                    
-                   # FLOATING WIDGET 1: GRAPH PLOT
-                   absolutePanel(
-                       id = "float_network", class = "panel panel-primary",
-                       #top = 40, left = 500, width = 450, 
-                       top = "5%",   # 10% down from the top edge
-                       left = "30%",  # 30% in from the left edge
-                       width = "25%", # Box width is 25% of the screen width
-                       draggable = TRUE, fixed = TRUE,
-                       style = "z-index: 1050;",
-                       div(class = "panel-heading", style="cursor: move;", 
-                           tags$strong(icon("project-diagram"), " Network Topology"),
-                           tags$button(type="button", class="pull-right btn btn-xs btn-primary", 
-                                       onclick="$('#net_plot_body').slideToggle();", icon("minus"))
-                       ),
-                       div(id = "net_plot_body", class = "panel-body", 
-                           plotOutput("graph_plot", height = "350px"))
-                   ),
-                   
-                   # FLOATING WIDGET 2: GGMAP PLOT
-                   absolutePanel(
-                       id = "float_static_map", class = "panel panel-info",
-                       #top = 40, left = 1000, width = 450, 
-                       top = "5%",   # 10% down from the top edge
-                       left = "55%",  # 30% in from the left edge
-                       width = "25%", # Box width is 25% of the screen width
-                       draggable = TRUE, fixed = TRUE,
-                       style = "z-index: 1050;",
-                       div(class = "panel-heading", style="cursor: move;", 
-                           tags$strong(icon("map"), " Static Map (ggplot)"),
-                           tags$button(type="button", class="pull-right btn btn-xs btn-info", 
-                                       onclick="$('#stat_plot_body').slideToggle();", icon("minus"))
-                       ),
-                       div(id = "stat_plot_body", class = "panel-body", 
-                           plotOutput("ggplot_map", height = "350px"))
-                   ), # COMMA HERE
-                   
-                   # FLOATING WIDGET 3: Species Table
-                   absolutePanel(
-                       id = "float_species_list", class = "panel panel-success",
-                       #bottom = 20, left = 20, width = 350, 
-                       bottom = "2%",   # 10% down from the top edge
-                       left = "2%",  # 30% in from the left edge
-                       width = "25%", # Box width is 25% of the screen width
-                       #max-height = "90%",
-                       draggable = TRUE, fixed = TRUE,
-                       style = "z-index: 1060;", # Slightly higher index to stay on top
-                       div(class = "panel-heading", style="cursor: move;", 
-                           tags$strong(icon("table"), " Species List (Selected Groups)"),
-                           tags$button(type="button", class="pull-right btn btn-xs btn-success", 
-                                       onclick="$('#species_table_body').slideToggle();", icon("minus"))
-                       ),
-                       div(id = "species_table_body", class = "panel-body", style="padding: 10px;",
-                           DT::DTOutput("view_species_table")
-                       )
-                   )
+             # FLOATING WIDGET 1: GRAPH PLOT
+             absolutePanel(
+                 id = "float_network", class = "panel panel-primary",
+                 top = "5%", left = "30%", width = "25%", 
+                 draggable = TRUE, fixed = TRUE,
+                 style = "z-index: 1050;",
+                 
+                 div(class = "panel-heading", style="cursor: move;", 
+                     tags$strong(icon("project-diagram"), " Network Topology"),
+                     tags$button(type="button", class="pull-right btn btn-xs btn-primary", 
+                                 onclick="$('#net_plot_body').slideToggle();", icon("minus"))
+                 ),
+                 div(id = "net_plot_body", class = "panel-body", 
+                     plotOutput("graph_plot", height = "350px")) # Back to fixed height
+             ),
+                 
+             # FLOATING WIDGET 2: GGMAP PLOT
+             absolutePanel(
+                 id = "float_static_map", class = "panel panel-info",
+                 top = "5%", left = "57%", width = "25%", 
+                 draggable = TRUE, fixed = TRUE, style = "z-index: 1050;",
+                 
+                 div(class = "panel-heading", style="cursor: move;", 
+                     tags$strong(icon("map"), " Static Map (ggplot)"),
+                     tags$button(type="button", class="pull-right btn btn-xs btn-info", 
+                                 onclick="$('#stat_plot_body').slideToggle();", icon("minus"))
+                 ),
+                 div(id = "stat_plot_body", class = "panel-body", 
+                     plotOutput("ggplot_map", height = "350px")) # Back to fixed height
+             ),
+               
+            # FLOATING WIDGET 3: Species Table
+            absolutePanel(
+               id = "float_species_list", class = "panel panel-success",
+               top = "5%",   
+               left = "1%",  
+               width = "25%", 
+               #max-height = "90%",
+               draggable = TRUE, fixed = TRUE,
+               style = "z-index: 1060;
+               max-height: 1000px; overflow-y: auto;", 
+               div(class = "panel-heading", style="cursor: move;", 
+                   tags$strong(icon("table"), " Species List (Selected Groups)"),
+                   tags$button(type="button", class="pull-right btn btn-xs btn-success", 
+                               onclick="$('#species_table_body').slideToggle();", icon("minus"))
+               ),
+               div(id = "species_table_body", class = "panel-body", 
+                   style="padding: 10px;",
+                   DT::DTOutput("view_species_table")
+               )
+            )
     ), # End SCAN Viewer Conditional Panel
 
-    # --- 7. SCAN VIEWER CONTROLLER (Right Side) ----
-    # conditionalPanel(
-    #   condition = "input.top_nav == 'SCAN Viewer'",
-    #   
-    #   absolutePanel(
-    #     id = "scan_viewer_controls",
-    #     class = "panel panel-info", 
-    #     bottom = 10, right = 10, width = 300, 
-    #     style = "z-index: 500; opacity: 0.85;",
-    #     draggable = TRUE, fixed = TRUE, # collapsed = TRUE,
-    #     div(class = "panel-heading", tags$h4(icon("cogs"), "Info")),
-    #     
-    #     # diagnostics here
-    #     # Keeping the debugger for one last check
-    #     box( title="System Diagnostics", status="warning",
-    #         verbatimTextOutput("debug_viewer_console"))
-    #    )
-    # ),
-  
+
     # --- PANEL: SETTINGS & FILES (Downloads) ----
   
      conditionalPanel(
@@ -367,6 +346,13 @@ ui <- fillPage(
                  h3(icon("download"), "Data Export"),
                  box(title = "Results Export", status = "danger", width = NULL,
                      fluidRow(
+                         # FIRST ROW: GEOMETRY & MATRIX
+                         column(6, downloadButton("dl_map", "📥 Export Map (SHP)", class = "btn-block btn-primary")),
+                         column(6, downloadButton("dl_cs", "📥 Export Cs Matrix", class = "btn-block btn-success"))
+                     ),
+                     br(), # Tiny space between rows
+                     fluidRow(
+                         # SECOND ROW: NETWORK & GROUPS
                          column(4, downloadButton("dl_chorotypes", "📥 Chorotypes", class = "btn-block")),
                          column(4, downloadButton("dl_edges", "📥 Graph Edges", class = "btn-block")),
                          column(4, downloadButton("dl_nodes", "📥 Graph Nodes", class = "btn-block"))

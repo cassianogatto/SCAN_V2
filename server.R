@@ -22,6 +22,7 @@ library(RColorBrewer)
 library(DT)          
 library(stringr)
 library(shinyjs)
+library(shinyjqui)
 
 # ---- 🚀 GLOBAL SETTINGS ---
 options(shiny.maxRequestSize = 500 * 1024^2) 
@@ -75,14 +76,6 @@ server <- function(input, output, session) {
         palette = "Set2",
         show_labels = TRUE
     )
-    
-    
-    # 1.2 THE VIEWER BRIDGE ----
-    # This connects the Engine output to all your Maps and Tables
-    scan_graph <- reactive({ 
-        req(scan_results()) # Wait until results exist
-        scan_results() 
-    })
     
     
     # 1.3 LISTENERS TO UPDATES ----
@@ -240,21 +233,26 @@ server <- function(input, output, session) {
         # --- MAP UPDATER: Lineage-Aware Version ---
         if (use_chorotypes && !is.null(viewer_palette())) {
             
-            # Change 'comps' to 'Chorotype' here
-            pal_fun <- colorFactor(palette = viewer_palette(), domain = display_shp$Chorotype)
+            # Safety check: Do we actually have polygons to draw?
+            req(nrow(display_shp) > 0)
+            
+            # Explicitly set the color domain to avoid 'Factor not found' errors
+            pal_fun <- colorFactor(
+                palette = viewer_palette(), 
+                domain = display_shp$Chorotype 
+            )
             
             alpha_val <- if(!is.null(input$alpha_global)) input$alpha_global else 0.3
             
             map_proxy %>% addPolygons(
                 data = display_shp,
-                fillColor = ~pal_fun(Chorotype), # Change this to Chorotype
+                fillColor = ~pal_fun(Chorotype), 
                 fillOpacity = alpha_val,
                 color = "white", weight = 1, opacity = 1,
                 label = ~as.character(display_shp[[col_name]]),
-                # Update popup to use Chorotype
-                popup = ~paste("<b>Species:</b>", display_shp[[col_name]], "<br><b>Chorotype:</b>", Chorotype)
+                popup = ~paste("<b>Species:</b>", display_shp[[col_name]], 
+                               "<br><b>Chorotype:</b>", Chorotype)
             )
-            
         } else {
             
             # --- STANDARD MODE: Solid Green ---
@@ -487,40 +485,63 @@ server <- function(input, output, session) {
      
     # A. SCAN Preview Table (Main Window)
     output$table_download_preview <- DT::renderDT({
-        req(scan_graph())
-        df <- scan_graph()[['chorotypes']] %>% 
+        req(scan_results())
+        df <- scan_results()[['chorotypes']] %>% 
             rename(Chorotype = Chorotype_ID) # Final touch for consistency
         DT::datatable(df, options = list(pageLength = 35, scrollX = TRUE))
     })
     
     # B. SCAN Summary Text
     output$scan_summary_text <- renderUI({
-        req(scan_graph())
-        df <- scan_graph()[['chorotypes']]
+        req(scan_results())
+        df <- scan_results()[['chorotypes']]
         n_groups <- length(unique(df$Chorotype_ID))
         HTML(paste0("<b>", n_groups, " Chorotypes</b> found"))
     })
     
     # C. SCAN Results sidebar
-    output$scan_chorotype_list <- renderTable({
-        req(scan_graph())
-        df <- scan_graph()[['chorotypes']]
+    
+    # --- 6.C INTERACTIVE SIDEBAR SPECIES LIST ---
+    output$scan_chorotype_list <- DT::renderDT({
+        req(scan_results())
         
-        # Clean Table for Sidebar Display
-        df %>% 
-            dplyr::select(Group = Chorotype_ID, Species) %>% 
-            # Optional: Shorten Group Name if needed (e.g. Ct0.5_G1 -> G1)
-            dplyr::mutate(Group = sub(".*_G", "G", Group)) %>%
-            head(100) # Safety limit for display speed
+        # We use the full species list as you requested
+        df <- scan_results()[['chorotypes']] %>%
+            select(Chorotype = Chorotype_ID, Species, Threshold) %>%
+            arrange(Threshold, Chorotype)
         
-    }, striped = TRUE, hover = TRUE, width = "100%", spacing = "xs")
+        DT::datatable(df, 
+                      selection = 'single', # This prepares us for your 'Actions' idea!
+                      options = list(
+                          pageLength = 10,     # Small chunks prevent lag
+                          dom = 'tp',          # Shows only table and pagination (keeps it tidy)
+                          scrollX = TRUE,
+                          fontSize = '8pt'
+                      ),
+                      rownames = FALSE
+        )
+    })
+    
+    # replace the output below
+    # output$scan_chorotype_list <- renderTable({
+    #     req(scan_results())
+    #     df <- scan_results()[['chorotypes']]
+    #     
+    #     # Clean Table for Sidebar Display
+    #     df %>% 
+    #         dplyr::select(Group = Chorotype_ID, Species) %>% 
+    #         # Optional: Shorten Group Name if needed (e.g. Ct0.5_G1 -> G1)
+    #         dplyr::mutate(Group = sub(".*_G", "G", Group)) %>%
+    #         head(100) # Safety limit for display speed
+    #     
+    # }, striped = TRUE, hover = TRUE, width = "100%", spacing = "xs")
     
     # D. Helper Flags
     output$cs_data_available <- reactive({ !is.null(cs_matrix_data()) && nrow(cs_matrix_data()) > 0 })
     
     outputOptions(output, "cs_data_available", suspendWhenHidden = FALSE)
     
-    output$scan_results_ready <- reactive({ !is.null(scan_graph()) })
+    output$scan_results_ready <- reactive({ !is.null(scan_results()) })
     
     outputOptions(output, "scan_results_ready", suspendWhenHidden = FALSE)
     
@@ -572,7 +593,7 @@ server <- function(input, output, session) {
                     # Check if results exist safely
                     res_ready <- FALSE
                     try({
-                        if(exists("scan_graph") && !is.null(scan_graph())) res_ready <- TRUE
+                        if(exists("scan_graph") && !is.null(scan_results())) res_ready <- TRUE
                     }, silent=TRUE)
                     
                     if(res_ready) {
@@ -627,7 +648,11 @@ server <- function(input, output, session) {
                         
                         hr(style = "margin-top: 10px; margin-bottom: 10px;"),
                         tags$h5(icon("paint-brush"), "Visual Tweaks", style="margin-top: 0; color: #777;"),
-                        checkboxInput("viewer_show_labels", "Show Network Labels", value = isolate(viewer_state$show_labels)),
+                        # --- NEW: TOGGLE MAP LEGEND TWEAK ---
+                        div(style = "display: flex; gap: 10px;",
+                            checkboxInput("viewer_show_labels", "Show Network Labels", value = isolate(viewer_state$show_labels)),
+                            checkboxInput("viewer_show_map_legend", "Show Map Legend", value = TRUE) # Tweak
+                        ),
                         sliderInput("alpha_global", "Map Transparency:", min=0, max=1, value = isolate(viewer_state$alpha), step=0.1),
                         selectInput("palette_global", "Color Palette:", choices = c("Set2", "Set1", "Paired", "Dark2", "RdYlBu"), selected = isolate(viewer_state$palette))
                     )
@@ -669,8 +694,8 @@ server <- function(input, output, session) {
     
     # F. Mini Table for SCAN Results (Count of groups)
     output$mini_scan_summary <- renderTable({
-        req(scan_graph())
-        df <- scan_graph()[['chorotypes']]
+        req(scan_results())
+        df <- scan_results()[['chorotypes']]
         data.frame(Metric = c("Total Groups", "Rows"), Value = c(length(unique(df$Chorotype_ID)), nrow(df)))
     }, colnames = FALSE, width = "100%", bordered = TRUE)
     
@@ -704,24 +729,24 @@ server <- function(input, output, session) {
     # 3. SCAN Results 
     output$dl_chorotypes <- downloadHandler(
         filename = function() { paste0("SCAN_Groups_", Sys.Date(), ".csv") },
-        content = function(file) { req(scan_graph()); write.csv(scan_graph()[['chorotypes']], file, row.names = FALSE) }
+        content = function(file) { req(scan_results()); write.csv(scan_results()[['chorotypes']], file, row.names = FALSE) }
     )
     
     output$dl_edges <- downloadHandler(
         filename = function() { paste0("SCAN_Edges_", Sys.Date(), ".csv") },
-        content = function(file) { req(scan_graph()); write.csv(scan_graph()[['graph_edges']], file, row.names = FALSE) }
+        content = function(file) { req(scan_results()); write.csv(scan_results()[['graph_edges']], file, row.names = FALSE) }
     )
     
     output$dl_nodes <- downloadHandler(
         filename = function() { paste0("SCAN_Nodes_", Sys.Date(), ".csv") },
-        content = function(file) { req(scan_graph()); write.csv(scan_graph()[['graph_nodes']], file, row.names = FALSE) }
+        content = function(file) { req(scan_results()); write.csv(scan_results()[['graph_nodes']], file, row.names = FALSE) }
     )
     
-    # --- 10. SCAN VIEWER  ----
+    # --- 10. SCAN VIEWER LOGIC ----
     
     # A. Dynamic Checkbox Generator (Sorted by Lineage)
     output$viewer_group_selector <- renderUI({
-        req(scan_results()) # Listen directly to results
+        req(scan_results()) 
         df <- scan_results()[['chorotypes']]
         current_ct <- input$viewer_threshold
         
@@ -733,26 +758,18 @@ server <- function(input, output, session) {
         if(length(available_groups) == 0) return(helpText("No chorotypes formed exactly at this Threshold."))
         
         # --- PADDED SORTING FOR HIERARCHICAL IDs ---
-        # Standard alphabetic sort puts 1.10 before 1.2. We "pad" numbers (e.g., 1.2 -> 001.002, 1.10 -> 001.010) to fix this[cite: 7].
         groups_raw <- unique(available_groups)
-        
-        # Split by dot (Source 7 already loads stringr)[cite: 7]
         split_parts <- stringr::str_split(groups_raw, "\\.")
-        
-        # Pad segments to 3 digits[cite: 7]
         padded_keys <- lapply(split_parts, function(x) {
             padded_x <- stringr::str_pad(x, width = 3, side = "left", pad = "0")
             paste(padded_x, collapse = ".")
         })
         
-        # Sort using the padded key[cite: 7]
         sorted_df <- data.frame(original = groups_raw, key = unlist(padded_keys)) %>%
             dplyr::arrange(key)
-        
         final_sorted_groups <- sorted_df$original
         # ---------------------------------------------
         
-        # Use the IDs directly as labels for the 1.1.1 system[cite: 7]
         display_labels <- final_sorted_groups
         names(final_sorted_groups) <- display_labels
         
@@ -771,38 +788,50 @@ server <- function(input, output, session) {
     })
     
     # B. BUTTON ACTIONS (Select All / None)
+    
+    # SELECT ALL
     observeEvent(input$btn_select_all, {
-        req(scan_graph(), input$viewer_threshold)
+        req(scan_results(), input$viewer_threshold) 
         if (isTRUE(input$single_select_mode)) {
             showNotification("Cannot 'Select All' in Single Group Mode.", type = "warning")
             return()
         }
-        df <- scan_graph()[['chorotypes']]
-        available_groups <- df %>% dplyr::filter(abs(Threshold - input$viewer_threshold) < 0.001) %>% dplyr::pull(Chorotype_ID) %>% unique()
+        df <- scan_results()[['chorotypes']]
+        available_groups <- df %>% 
+            dplyr::filter(abs(Threshold - input$viewer_threshold) < 0.001) %>% 
+            dplyr::pull(Chorotype_ID) %>% unique()
         updateCheckboxGroupInput(session, "viewer_groups_check", selected = available_groups)
     })
     
+    # SELECT NONE
     observeEvent(input$btn_select_none, {
         if (isTRUE(input$single_select_mode)) return()
-        updateCheckboxGroupInput(session, "viewer_groups_check", selected = character(0))
+        
+        updateCheckboxGroupInput(session, "viewer_groups_check", 
+                                 selected = character(0))
+        
+        viewer_state$groups <- NULL # Clears the memory bank too
+        showNotification("Selections cleared.", type = "message", duration = 2)
     })
     
-    # --- 10. SCAN VIEWER LOGIC (Lineage-Aware Visualization) ---
+    # C. LINEAGE-AWARE FILTERS
     
-    # A. Dynamic Checkbox Generator (Sorted by Lineage) --- KEEP YOUR EXISTING SORTED CODE HERE ---
-    
-    # C. Helper: The Sub-Graph (Lineage-Aware Filter)
+    # Helper: The Sub-Graph Filter
     viewer_sub_graph <- reactive({
         req(scan_results(), input$viewer_threshold)
         
-        current_groups <- if(isTRUE(input$single_select_mode)) input$viewer_groups_radio else input$viewer_groups_check
-        req(current_groups)
+        current_groups <- if(isTRUE(input$single_select_mode)) {
+            input$viewer_groups_radio 
+        } else {
+            input$viewer_groups_check
+        }
+        
+        req(length(current_groups) > 0) 
         
         df <- scan_results()[['chorotypes']]
         
-        # Filter by both threshold AND the 1.1.1 IDs
         target_df <- df %>% 
-            filter(abs(Threshold - input$viewer_threshold) < 0.001) %>%
+            filter(abs(Threshold - input$viewer_threshold) < 0.0001) %>%
             filter(Chorotype_ID %in% current_groups)
         
         selected_spp <- target_df %>% pull(Species) %>% unique()
@@ -810,30 +839,32 @@ server <- function(input, output, session) {
         
         g_full <- scan_results()[['graph']]
         
-        # Build sub-graph and attach the 1.1.1 names to the nodes
         g_view <- g_full %>%
-            activate(edges) %>% filter(Cs >= input$viewer_threshold) %>% 
-            activate(nodes) %>% filter(name %in% selected_spp) %>% 
-            left_join(target_df %>% select(name = Species, Chorotype = Chorotype_ID), by = "name")
+            activate(nodes) %>% 
+            filter(name %in% selected_spp) %>% 
+            left_join(target_df %>% select(name = Species, Chorotype = Chorotype_ID) %>% distinct(), by = "name") %>%
+            activate(edges) %>% 
+            filter(Cs >= input$viewer_threshold)
         
         return(g_view)
     })
     
-    # D. Helper: The Map Data
+    # D. Helper: The Map Data Join (Final Version)
     viewer_map_data <- reactive({
         req(viewer_sub_graph(), map_data())
         
         col_name <- if(isTRUE(input$ID_column)) input$colum_sp_map else "sp"
         if (!col_name %in% names(map_data())) col_name <- names(map_data())[1] 
         
+        # Get species and their Chorotype IDs from the graph
         node_data <- viewer_sub_graph() %>% activate(nodes) %>% as_tibble() %>% 
             select(name, Chorotype)
         
         join_by_vec <- setNames("name", col_name)
         
+        # We use inner_join to ensure only selected monkeys with geometry are kept
         map_final <- map_data() %>% 
-            filter(.data[[col_name]] %in% node_data$name) %>% 
-            left_join(node_data, by = join_by_vec)
+            inner_join(node_data, by = join_by_vec)
         
         return(map_final)
     })
@@ -841,7 +872,6 @@ server <- function(input, output, session) {
     # E. Helper: Lineage Palette
     viewer_palette <- reactive({
         req(viewer_sub_graph(), input$palette_global)
-        # Unique 1.1.1 IDs are the new keys for colors
         grps <- viewer_sub_graph() %>% activate(nodes) %>% as_tibble() %>% 
             pull(Chorotype) %>% unique() %>% sort()
         
@@ -854,15 +884,18 @@ server <- function(input, output, session) {
         return(cols)
     })
     
-    # --- UPDATED PLOT RENDERERS ---
+    # --- PLOT RENDERERS ---
     
     output$ggplot_map <- renderPlot({
         req(viewer_map_data(), viewer_palette(), input$alpha_global)
+        
+        leg_pos <- if(isTRUE(input$viewer_show_map_legend)) "bottom" else "none"
+        
         ggplot(viewer_map_data()) +
-            # Fill aesthetics now use the 'Chorotype' lineage column
             geom_sf(aes(fill = as.factor(Chorotype)), color = "black", size = 0.2, alpha = input$alpha_global) +
             scale_fill_manual(values = viewer_palette(), name = "Chorotype") +
-            theme_minimal() + theme(legend.position = "bottom") +
+            theme_minimal() + 
+            theme(legend.position = leg_pos) + 
             labs(title = paste("Distribution (Ct =", input$viewer_threshold, ")"))
     })
     
@@ -884,12 +917,23 @@ server <- function(input, output, session) {
         col_name <- if(isTRUE(input$ID_column)) input$colum_sp_map else "sp"
         if (!col_name %in% names(viewer_map_data())) col_name <- names(viewer_map_data())[1]
         
-        viewer_map_data() %>% 
+        table_df <- viewer_map_data() %>% 
             sf::st_drop_geometry() %>% 
-            # Simply select the existing 'Chorotype' column
             select(Species = all_of(col_name), Chorotype) %>% 
             arrange(Chorotype, Species)
-    }, options = list(pageLength = 20, scrollX = TRUE))
+        
+        DT::datatable(table_df,
+                      extensions = 'Buttons',
+                      options = list(
+                          pageLength = 20, 
+                          scrollX = TRUE,
+                          dom = 'Bfrtip',
+                          buttons = c('copy', 'csv', 'excel')
+                      ),
+                      rownames = FALSE
+        )
+    }, server = FALSE)
+    
     
     # --- 11. UNIVERSAL SCAN UPLOADER (2 or 3 Files) ----
     observeEvent(input$upload_scan_csvs, {
@@ -1063,52 +1107,9 @@ server <- function(input, output, session) {
         # print(paste("Viewer Step updated to:", input$resolution))
     })
     
-    # --- DEBUGGER: VIEWER DIAGNOSTICS --- removed
-    # output$debug_viewer_console <- renderPrint({
-    #     cat("--- 1. NAVIGATION STATE ---\n")
-    #     cat("Top Nav (input$top_nav):      ", input$top_nav, "\n")
-    #     cat("Sub Nav (analysis_subtabs):   ", input$analysis_subtabs, "\n")
-    #     
-    #     cat("\n--- 1. DATA AVAILABILITY ---\n")
-    #     # Check if scan_graph exists and has data
-    #     has_graph <- FALSE
-    #     if(exists("scan_graph")) {
-    #         try({
-    #             res <- scan_graph()
-    #             if(!is.null(res)) {
-    #                 cat("SCAN Results:                 AVAILABLE\n")
-    #                 cat("Chorotypes Found:             ", nrow(res[['chorotypes']]), "\n")
-    #                 has_graph <- TRUE
-    #             } else {
-    #                 cat("SCAN Results:                 NULL\n")
-    #             }
-    #         })
-    #     } else {
-    #         cat("SCAN Results:                 NOT FOUND (Reactive doesn't exist)\n")
-    #     }
-    #     
-    #     cat("\n--- 2. RIGHT PANEL INPUTS ---\n")
-    #     cat("Threshold (input$viewer_threshold):      ", input$viewer_threshold, "\n")
-    #     cat("Selected Groups (input$viewer_selected_groups): ", paste(input$viewer_selected_groups, collapse=", "), "\n")
-    #     
-    #     cat("\n--- 4. INTERMEDIATE REACTIVES ---\n")
-    #     # Check if the helpers are calculating
-    #     if(has_graph && !is.null(input$viewer_threshold)) {
-    #         tryCatch({
-    #             sub <- viewer_sub_graph()
-    #             cat("Sub-Graph Nodes:              ", igraph::vcount(sub), "\n")
-    #             cat("Sub-Graph Edges:              ", igraph::ecount(sub), "\n")
-    #         }, error = function(e) cat("Sub-Graph Error:              ", e$message, "\n"))
-    #     } else {
-    #         cat("Sub-Graph:                    WAITING FOR INPUTS\n")
-    #     }
-    # })
-    # 
     
     
-    
-    
-} # End Server
+} # End Server ----
 
 
 
