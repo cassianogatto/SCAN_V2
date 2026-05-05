@@ -9,7 +9,6 @@ library(shiny)
 library(leaflet)
 library(shinydashboard)
 library(shinyjs)
-library(shinyjqui)
 
 ui <- fillPage(
     useShinyjs(), # Crucial for our navigation buttons

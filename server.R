@@ -22,7 +22,7 @@ library(RColorBrewer)
 library(DT)          
 library(stringr)
 library(shinyjs)
-library(shinyjqui)
+
 
 # ---- 🚀 GLOBAL SETTINGS ---
 options(shiny.maxRequestSize = 500 * 1024^2) 
@@ -850,23 +850,24 @@ server <- function(input, output, session) {
     })
     
     # D. Helper: The Map Data Join (Final Version)
+    # D. Helper: The Map Data Join (Final Version)
     viewer_map_data <- reactive({
-        req(viewer_sub_graph(), map_data())
-        
-        col_name <- if(isTRUE(input$ID_column)) input$colum_sp_map else "sp"
-        if (!col_name %in% names(map_data())) col_name <- names(map_data())[1] 
-        
-        # Get species and their Chorotype IDs from the graph
-        node_data <- viewer_sub_graph() %>% activate(nodes) %>% as_tibble() %>% 
-            select(name, Chorotype)
-        
-        join_by_vec <- setNames("name", col_name)
-        
-        # We use inner_join to ensure only selected monkeys with geometry are kept
-        map_final <- map_data() %>% 
-            inner_join(node_data, by = join_by_vec)
-        
-        return(map_final)
+      req(viewer_sub_graph(), map_data())
+      
+      col_name <- if(isTRUE(input$ID_column)) input$colum_sp_map else "sp"
+      if (!col_name %in% names(map_data())) col_name <- names(map_data())[1] 
+      
+      # Get species and their Chorotype IDs from the graph
+      node_data <- viewer_sub_graph() %>% activate(nodes) %>% as_tibble() %>% 
+        select(name, Chorotype)
+      
+      join_by_vec <- setNames("name", col_name)
+      
+      # We use inner_join to ensure only selected monkeys with geometry are kept
+      map_final <- map_data() %>% 
+        inner_join(node_data, by = join_by_vec)
+      
+      return(map_final)
     })
     
     # E. Helper: Lineage Palette
